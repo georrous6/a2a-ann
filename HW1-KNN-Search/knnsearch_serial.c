@@ -4,7 +4,7 @@
 #include <string.h>
 #include <time.h>
 #include <cblas.h>
-#include <matio.h>
+#include <mat.h>
 #include <math.h>
 
 #define DATA_DIM 2
@@ -12,123 +12,49 @@
 #define QUERY_DATA_SIZE 1
 
 
-int store_random_data_to_file(const char* filename, const char* matname, size_t rows, size_t cols)
-{
-    double *data;
-    mat_t *matfp = NULL;
-    matvar_t *matvar;
-
-    data = (double *)malloc(rows * cols * sizeof(double));
-    if (data == NULL) 
-    {
-        fprintf(stderr, "Error allocating memory\n");
-        return EXIT_FAILURE;
-    }
-
-    // Generate random doubles and fill the matrix
-    for (int i = 0; i < rows * cols; i++) 
-    {
-        data[i] = (double)rand() / RAND_MAX; // Random double between 0 and 1
-    }
-
-    // Try opening the MAT file in read/write mode (append mode)
-    matfp = Mat_Open(filename, MAT_ACC_RDWR);
-    if (!matfp)
-    {
-        // If file doesn't exist, create a new one
-        matfp = Mat_CreateVer(filename, NULL, MAT_FT_MAT5); // or MAT_FT_MAT4 / MAT_FT_MAT73
-        if (!matfp)
-        {
-            fprintf(stderr, "Error creating MAT file %s. %s\n", filename, strerror(errno));
-            free(data);
-            return EXIT_FAILURE;
-        }
-    }
-
-    // Create a MAT variable for the matrix
-    size_t dim2d[2] = { rows, cols };
-    matvar = Mat_VarCreate(matname, MAT_C_DOUBLE, MAT_T_DOUBLE, 2, dim2d, data, 0);
-    if (!matvar) 
-    {
-        fprintf(stderr, "Error creating MAT variable %s\n", matname);
-        Mat_Close(matfp);
-        free(data);
-        return EXIT_FAILURE;
-    }
-
-    // Write the variable to the .mat file
-    if (Mat_VarWrite(matfp, matvar, MAT_COMPRESSION_NONE)) 
-    {
-        fprintf(stderr, "Error writing MAT variable %s\n", matname);
-        Mat_VarFree(matvar);
-        Mat_Close(matfp);
-        free(data);
-        return EXIT_FAILURE;
-    }
-
-    // Free resources
-    Mat_VarFree(matvar);
-    Mat_Close(matfp);
-    free(data);
-
-    return EXIT_SUCCESS;
-}
-
-
 double* load_matrix_from_file(const char *filename, const char* matname, size_t* rows, size_t* cols)
 {
-    mat_t *matfp;
-    matvar_t *matvar;
+    MATFile *pmat;
+    mxArray *arr;
     double *data = NULL;
 
     // Open the .mat file for reading
-    matfp = Mat_Open(filename, MAT_ACC_RDONLY);
-    if (!matfp) 
+    pmat = matOpen(filename, "r");
+    if (!pmat) 
     {
-        fprintf(stderr, "Error opening MAT file: %s\n", strerror(errno));
+        fprintf(stderr, "Error opening MAT-file \'%s\'. %s\n", filename, strerror(errno));
         return NULL;
     }
 
     // Read the matrix from the .mat file
-    matvar = Mat_VarRead(matfp, matname);
-    if (!matvar) 
+    arr = matGetVariable(pmat, matname);
+    if (!arr) 
     {
-        fprintf(stderr, "Error reading variable '%s' from MAT file.\n", matname);
-        Mat_Close(matfp);
+        fprintf(stderr, "Variable \'%s\' not found in MAT-file \'%s\'\n", matname, filename);
+        matClose(pmat);
         return NULL;
     }
 
-    // Check if the variable is a 2D double matrix
-    if (matvar->rank == 2 && matvar->data_type == MAT_T_DOUBLE) 
-    {
-        // Store dimensions
-        *rows = matvar->dims[0];
-        *cols = matvar->dims[1];
+    // Store dimensions
+    *rows = mxGetM(arr);
+    *cols = mxGetN(arr);
 
-        // Allocate memory to copy matrix data
-        data = (double *)malloc((*rows) * (*cols) * sizeof(double));
-        if (!data) 
-        {
-            fprintf(stderr, "Error allocating memory for matrix data.\n");
-            Mat_VarFree(matvar);
-            Mat_Close(matfp);
-            return NULL;
-        }
-
-        // Copy matrix data
-        memcpy(data, matvar->data, (*rows) * (*cols) * sizeof(double));
-    } 
-    else 
+    // Allocate memory to copy matrix data
+    data = (double *)malloc((*rows) * (*cols) * sizeof(double));
+    if (!data) 
     {
-        fprintf(stderr, "The variable '%s' is not a 2D double matrix.\n", matname);
-        Mat_VarFree(matvar);
-        Mat_Close(matfp);
+        fprintf(stderr, "Error allocating memory for matrix data\n");
+        mxDestroyArray(arr);
+        matClose(pmat);
         return NULL;
     }
+
+    // Copy matrix data
+    memcpy(data, mxGetPr(arr), (*rows) * (*cols) * sizeof(double));
 
     // Clean up
-    Mat_VarFree(matvar);
-    Mat_Close(matfp);
+    mxDestroyArray(arr);
+    matClose(pmat);
 
     return data;
 }
@@ -136,11 +62,13 @@ double* load_matrix_from_file(const char *filename, const char* matname, size_t*
 
 void print_matrix(const double* mat, size_t rows, size_t cols)
 {
-    for (int i = 0; i < rows * cols; i++)
+    for (size_t i = 0; i < rows; i++)
     {
-        if (i % cols == 0)
-            printf("\n");
-        printf("%lf ", mat[i]);
+        for (size_t j = 0; j < cols; j++)
+        {
+            printf("%lf ", mat[i * cols + j]);
+        }
+        printf("\n");
     }
 }
 
@@ -154,7 +82,7 @@ int knnsearch(const double* Q, const double* C, double* D, int M, int N, int K, 
     double *sqrmag_Q = (double *)malloc(M * sizeof(double));
     if (!sqrmag_Q)
     {
-        fprintf(stderr, "Error allocating memory\n");
+        fprintf(stderr, "Error allocating memory for squared magnitudes\n");
         return EXIT_FAILURE;
     }
 
@@ -162,7 +90,8 @@ int knnsearch(const double* Q, const double* C, double* D, int M, int N, int K, 
     double *sqrmag_C = (double *)malloc(N * sizeof(double));
     if (!sqrmag_C)
     {
-        fprintf(stderr, "Error allocating memory\n");
+        fprintf(stderr, "Error allocating memory for squared magnitudes\n");
+        free(sqrmag_Q);
         return EXIT_FAILURE;
     }
 
@@ -172,7 +101,7 @@ int knnsearch(const double* Q, const double* C, double* D, int M, int N, int K, 
         tmp = 0.0;
         for (int j = 0; j < K ; j++)
         {
-            tmp += Q[i * K + j]; 
+            tmp += Q[i * K + j] * Q[i * K + j]; 
         }
         sqrmag_Q[i] = tmp;
     }
@@ -182,7 +111,7 @@ int knnsearch(const double* Q, const double* C, double* D, int M, int N, int K, 
         tmp = 0.0;
         for (int j = 0; j < K ; j++)
         {
-            tmp += C[i * K + j]; 
+            tmp += C[i * K + j] * C[i * K + j]; 
         }
         sqrmag_C[i] = tmp;
     }
@@ -195,18 +124,13 @@ int knnsearch(const double* Q, const double* C, double* D, int M, int N, int K, 
         }
     }
 
+    free(sqrmag_C);
+    free(sqrmag_Q);
     return EXIT_SUCCESS;
 }
 
 int main(int argc, char *argv[])
 {
-    srand(time(NULL));
-
-    // if (store_random_data_to_file("data.mat", "corpus", CORPUS_DATA_SIZE, DATA_DIM))
-    //     return EXIT_FAILURE;
-    // if (store_random_data_to_file("data.mat", "queries", QUERY_DATA_SIZE, DATA_DIM))
-    //     return EXIT_FAILURE;
-
     size_t CM, CN, QM, QN;
     double* C = load_matrix_from_file("data.mat", "corpus", &CM, &CN);
     if (!C)
@@ -236,9 +160,15 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    knnsearch(Q, C, D, QM, CM, QN, 1);
+    if (knnsearch(Q, C, D, QM, CM, QN, 1))
+    {
+        free(C);
+        free(Q);
+        free(D);
+        return EXIT_FAILURE;
+    }
 
-    printf("\n\nCoprus:");
+    printf("\n\nCorpus:");
     print_matrix(C, CM, CN);
     printf("\n\nQueries:");
     print_matrix(Q, QM, QN);
