@@ -4,7 +4,8 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/opt/OpenBLAS/include/"
+                "/opt/OpenBLAS/include/",
+                "${workspaceFolder}/HW1-KNN-Search/include"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang-14",

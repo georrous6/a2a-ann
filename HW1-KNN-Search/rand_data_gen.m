@@ -1,9 +1,9 @@
-C = [1, 2, 3; 4, 5, 6; 7, 8, 10];
-Q = [4, 5, 6];
+C = [7, 6];
+Q = [4, 6; 1, 1];
 
 save('test/data.mat', 'C', 'Q');
 
-[Idx, D] = knnsearch(C, Q, 'K', 3, 'SortIndices', false);
+[Idx, D] = knnsearch(C, Q, 'K', 1, 'SortIndices', true);
 
 % Display the distance matrix
 disp('Distance Matrix D:');
