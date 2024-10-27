@@ -8,7 +8,7 @@
 #include <getopt.h> 
 
 
-void* load_matrix(const char *filename, const char* matname, size_t* rows, size_t* cols)
+void* load_matrix(const char *filename, const char* matname, int* rows, int* cols)
 {
     mat_t *matfp;
     matvar_t *matvar;
@@ -49,9 +49,9 @@ void* load_matrix(const char *filename, const char* matname, size_t* rows, size_
         }
 
         // Copy matrix data with transposition
-        for (size_t i = 0; i < *rows; i++) 
+        for (int i = 0; i < *rows; i++) 
         {
-            for (size_t j = 0; j < *cols; j++) 
+            for (int j = 0; j < *cols; j++) 
             {
                 ((double *)data)[i * (*cols) + j] = ((double*)matvar->data)[j * (*rows) + i];
             }
@@ -63,28 +63,28 @@ void* load_matrix(const char *filename, const char* matname, size_t* rows, size_
         *rows = matvar->dims[0];
         *cols = matvar->dims[1];
 
-        // Allocate memory for a size_t (uint64_t) matrix
-        data = (size_t *)malloc((*rows) * (*cols) * sizeof(size_t));
+        // Allocate memory for a int (uint64_t) matrix
+        data = (int *)malloc((*rows) * (*cols) * sizeof(int));
         if (!data) 
         {
-            fprintf(stderr, "Error allocating memory for size_t matrix data.\n");
+            fprintf(stderr, "Error allocating memory for int matrix data.\n");
             Mat_VarFree(matvar);
             Mat_Close(matfp);
             return NULL;
         }
 
         // Copy matrix data with transposition
-        for (size_t i = 0; i < *rows; i++) 
+        for (int i = 0; i < *rows; i++) 
         {
-            for (size_t j = 0; j < *cols; j++) 
+            for (int j = 0; j < *cols; j++) 
             {
-                ((size_t*)data)[i * (*cols) + j] = ((uint64_t*)matvar->data)[j * (*rows) + i];
+                ((int*)data)[i * (*cols) + j] = ((uint64_t*)matvar->data)[j * (*rows) + i];
             }
         }
     }
     else 
     {
-        fprintf(stderr, "The variable '%s' is not a 2D size_t or double matrix.\n", matname);
+        fprintf(stderr, "The variable '%s' is not a 2D int or double matrix.\n", matname);
         Mat_VarFree(matvar);
         Mat_Close(matfp);
         return NULL;
@@ -98,7 +98,7 @@ void* load_matrix(const char *filename, const char* matname, size_t* rows, size_
 }
 
 
-int store_matrix(const void* mat, const char* matname, size_t rows, size_t cols, const char *filename, MATRIX_TYPE type)
+int store_matrix(const void* mat, const char* matname, int rows, int cols, const char *filename, MATRIX_TYPE type)
 {
     if (!mat) 
     {
@@ -113,30 +113,16 @@ int store_matrix(const void* mat, const char* matname, size_t rows, size_t cols,
         return EXIT_FAILURE;
     }
 
-    size_t dims[2] = {rows, cols};
+    int dims[2] = {rows, cols};
     matvar_t *matvar = NULL;
     
     if (type == DOUBLE_TYPE)
     {
         matvar = Mat_VarCreate(matname, MAT_C_DOUBLE, MAT_T_DOUBLE, 2, dims, mat, 0);
     }
-    else if (type == SIZE_T_TYPE)
+    else if (type == INT_TYPE)
     {
-        // Convert size_t array to uint64_t for MATLAB compatibility
-        uint64_t *data_uint64 = (uint64_t *)malloc(rows * cols * sizeof(uint64_t));
-        if (!data_uint64) 
-        {
-            fprintf(stderr, "Error allocating for uint64_t matrix.\n");
-            Mat_Close(matfp);
-            return EXIT_FAILURE;
-        }
-
-        for (size_t i = 0; i < rows * cols; i++) 
-        {
-            data_uint64[i] = (uint64_t)((size_t *)mat)[i];
-        }
-        matvar = Mat_VarCreate(matname, MAT_C_UINT64, MAT_T_UINT64, 2, dims, data_uint64, 0);
-        free(data_uint64);  // Free temporary uint64 array
+        matvar = Mat_VarCreate(matname, MAT_C_INT32, MAT_T_INT32, 2, dims, mat, 0);
     }
     else
     {
@@ -166,20 +152,20 @@ int store_matrix(const void* mat, const char* matname, size_t rows, size_t cols,
 }
 
 
-void print_matrix(const void* mat, const char* name, size_t rows, size_t cols, MATRIX_TYPE type)
+void print_matrix(const void* mat, const char* name, int rows, int cols, MATRIX_TYPE type)
 {
     printf("\n%s:\n", name);
-    for (size_t i = 0; i < rows; i++)
+    for (int i = 0; i < rows; i++)
     {
-        for (size_t j = 0; j < cols; j++) 
+        for (int j = 0; j < cols; j++) 
         {
             if (type == DOUBLE_TYPE)
             {
                 printf("%lf ", ((double *)mat)[i * cols + j]);
             }
-            else if (type == SIZE_T_TYPE)
+            else if (type == INT_TYPE)
             {
-                printf("%zu ", ((size_t *)mat)[i * cols + j]); // %zu is the format specifier for size_t
+                printf("%zu ", ((int *)mat)[i * cols + j]); // %zu is the format specifier for int
             }
         }
         printf("\n");
@@ -188,24 +174,24 @@ void print_matrix(const void* mat, const char* name, size_t rows, size_t cols, M
 
 
 /**
- * Converts a string to size_t.
+ * Converts a string to int.
  * 
  * @param value the evaluation of the string
  * @param str the string to be evaluated
  * @return EXIT_SUCCESS if the evaluation was successfull and EXIT_FAILURE otherwise
  */
-int str2size_t(size_t* value, const char *str) 
+int str2int(int* value, const char *str) 
 {
     char *endptr;
     errno = 0;  // Clear errno before calling strtoul
 
-    unsigned long ul = strtoul(str, &endptr, 10);
+    long num = strtol(str, &endptr, 10);
 
     // Error handling
-    if (errno == ERANGE && ul == ULONG_MAX) 
+    if (errno == ERANGE || num > INT_MAX || num < INT_MIN) 
     {
         printf("Overflow occurred, the value of K is too large.\n");
-        return EXIT_FAILURE;  // Return max size_t value to indicate overflow
+        return EXIT_FAILURE;
     }
     if (endptr == str || *endptr != '\0') 
     {
@@ -213,7 +199,7 @@ int str2size_t(size_t* value, const char *str)
         return EXIT_FAILURE;  // Indicate conversion failure
     }
 
-    *value = (size_t)ul;
+    *value = (int)num;
     return EXIT_SUCCESS;
 }
 
@@ -227,8 +213,8 @@ void print_usage(const char *program_name)
     fprintf(stderr, "  -jN                   Number of threads (N should be an integer)\n");
 }
 
-// Function to parse command-line arguments
-int parse_arguments(int argc, char *argv[], Options *opts, const char **filename, const char **CNAME, const char **QNAME, size_t *K) 
+
+int parse_arguments(int argc, char *argv[], Options *opts, const char **filename, const char **CNAME, const char **QNAME, int *K) 
 {
     int opt;
     
@@ -286,7 +272,7 @@ int parse_arguments(int argc, char *argv[], Options *opts, const char **filename
     *filename = argv[optind];
     *CNAME = argv[optind + 1];
     *QNAME = argv[optind + 2];
-    if (str2size_t(K, argv[optind + 3]) || *K == 0) // Convert K to size_t
+    if (str2int(K, argv[optind + 3]) || *K == 0) // Convert K to int
     {
         fprintf(stderr, "The value for K must be positive\n");
         return EXIT_FAILURE;

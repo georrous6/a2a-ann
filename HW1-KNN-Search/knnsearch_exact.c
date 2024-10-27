@@ -8,7 +8,7 @@
 int main(int argc, char *argv[])
 {
     Options opts;
-    size_t CM, CN, QM, QN, K;
+    int CM, CN, QM, QN, K;
     const char *filename, *CNAME, *QNAME;
     if (parse_arguments(argc, argv, &opts, &filename, &CNAME, &QNAME, &K))
     {
@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    size_t *IDX = (size_t *)malloc(QM * K * sizeof(size_t));
+    int *IDX = (int *)malloc(QM * K * sizeof(int));
     if (!IDX)
     {
         fprintf(stderr, "Error allocating memory for matrix IDX\n");
@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
     print_matrix(C, CNAME, CM, CN, DOUBLE_TYPE);
     print_matrix(Q, QNAME, QM, QN, DOUBLE_TYPE);
     print_matrix(D, "D", QM, K, DOUBLE_TYPE);
-    print_matrix(IDX, "IDX", QM, K, SIZE_T_TYPE);
+    print_matrix(IDX, "IDX", QM, K, INT_TYPE);
 
     free(C);
     free(Q);

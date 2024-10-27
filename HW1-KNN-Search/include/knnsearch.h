@@ -11,7 +11,7 @@
  * @param i the index of the first element to be swapped
  * @param j the index of the second element to be swapped
  */
-void swap(double *arr, size_t *idx, size_t i, size_t j);
+void swap(double *arr, int *idx, int i, int j);
 
 
 /**
@@ -26,7 +26,7 @@ void swap(double *arr, size_t *idx, size_t i, size_t j);
  * @param r the rightmost index of the array
  * @return the index of the pivot element
  */
-size_t partition(double *arr, size_t *idx, size_t l, size_t r);
+int partition(double *arr, int *idx, int l, int r);
 
 /**
  * Apply Quick Select algorithm to an array while maintaining
@@ -38,7 +38,7 @@ size_t partition(double *arr, size_t *idx, size_t l, size_t r);
  * @param r the rightmost index of the array
  * @param k the index of the kth smallest element. Indexing starts from 1
  */
-void qselect(double *arr, size_t *idx, size_t l, size_t r, size_t k);
+void qselect(double *arr, int *idx, int l, int r, int k);
 
 
 /**
@@ -50,7 +50,7 @@ void qselect(double *arr, size_t *idx, size_t l, size_t r, size_t k);
  * @param l the leftmost index of the array
  * @param r the rightmost index of the array
  */
-void qsort_(double *arr, size_t *idx, size_t l, size_t r);
+void qsort_(double *arr, int *idx, int l, int r);
 
 
 /**
@@ -72,6 +72,6 @@ void qsort_(double *arr, size_t *idx, size_t l, size_t r);
  * @note The user is responsible to pass IDX and D matrices with the appropriate
  * dimensions
  */
-int knnsearch_exact(const double* Q, const double* C, size_t* IDX, double* D, size_t M, size_t N, size_t L, size_t K, int sorted);
+int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, int M, int N, int L, int K, int sorted);
 
 #endif

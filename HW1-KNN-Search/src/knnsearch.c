@@ -5,22 +5,22 @@
 #include <math.h>
 
 
-void swap(double *arr, size_t *idx, size_t i, size_t j) 
+void swap(double *arr, int *idx, int i, int j) 
 {
     double dtemp = arr[i];
     arr[i] = arr[j];
     arr[j] = dtemp;
-    size_t lutemp = idx[i];
+    int lutemp = idx[i];
     idx[i] = idx[j];
     idx[j] = lutemp;
 }
 
 
-size_t partition(double *arr, size_t *idx, size_t l, size_t r) 
+int partition(double *arr, int *idx, int l, int r) 
 {
     double pivot = arr[r];
-    size_t i = l;
-    for (size_t j = l; r > 0 && j <= r - 1; j++) 
+    int i = l;
+    for (int j = l; r > 0 && j <= r - 1; j++) 
     {
         if (arr[j] <= pivot) 
         {
@@ -33,12 +33,12 @@ size_t partition(double *arr, size_t *idx, size_t l, size_t r)
 }
 
 
-void qselect(double *arr, size_t *idx, size_t l, size_t r, size_t k) 
+void qselect(double *arr, int *idx, int l, int r, int k) 
 {
     // Partition the array around the last 
     // element and get the position of the pivot 
     // element in the sorted array
-    size_t index = partition(arr, idx, l, r);
+    int index = partition(arr, idx, l, r);
 
     // If position is the same as k.
     if (index - l == k - 1)
@@ -56,12 +56,12 @@ void qselect(double *arr, size_t *idx, size_t l, size_t r, size_t k)
 }
 
 
-void qsort_(double *arr, size_t *idx, size_t l, size_t r) 
+void qsort_(double *arr, int *idx, int l, int r) 
 {
     if (l < r) 
     {
         // call partition function to find Partition Index
-        size_t index = partition(arr, idx, l, r);
+        int index = partition(arr, idx, l, r);
 
         // Recursively call for left and right
         // half based on Partition Index
@@ -71,7 +71,7 @@ void qsort_(double *arr, size_t *idx, size_t l, size_t r)
 }
 
 
-int knnsearch_exact(const double* Q, const double* C, size_t* IDX, double* D, size_t M, size_t N, size_t L, size_t K, int sorted)
+int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, int M, int N, int L, int K, int sorted)
 {
     // matrix to store the distances between all row vectors of matrix Q
     // and all row vectors of matrix C
@@ -83,7 +83,7 @@ int knnsearch_exact(const double* Q, const double* C, size_t* IDX, double* D, si
     }
 
     // input data indices of nearest neighbors
-    size_t *IDXall = (size_t *)malloc(M * N * sizeof(size_t));
+    int *IDXall = (int *)malloc(M * N * sizeof(int));
     if (!IDXall)
     {
         fprintf(stderr, "Error allocating memory for index matrix\n");
@@ -92,9 +92,9 @@ int knnsearch_exact(const double* Q, const double* C, size_t* IDX, double* D, si
     }
 
     // initialize index matrix
-    for (size_t i = 0; i < M; i++)
+    for (int i = 0; i < M; i++)
     {
-        for (size_t j = 0; j < N; j++)
+        for (int j = 0; j < N; j++)
         {
             IDXall[i * N + j] = j;
         }
@@ -126,10 +126,10 @@ int knnsearch_exact(const double* Q, const double* C, size_t* IDX, double* D, si
 
     double tmp;
     // compute the square of magnitudes of the row vectors of matrix Q
-    for (size_t i = 0; i < M; i++)
+    for (int i = 0; i < M; i++)
     {
         tmp = 0.0;
-        for (size_t j = 0; j < L; j++)
+        for (int j = 0; j < L; j++)
         {
             tmp += Q[i * L + j] * Q[i * L + j]; 
         }
@@ -137,10 +137,10 @@ int knnsearch_exact(const double* Q, const double* C, size_t* IDX, double* D, si
     }
 
     // compute the square of magnitudes of the row vectors of matrix C
-    for (size_t i = 0; i < N; i++)
+    for (int i = 0; i < N; i++)
     {
         tmp = 0.0;
-        for (size_t j = 0; j < L ; j++)
+        for (int j = 0; j < L ; j++)
         {
             tmp += C[i * L + j] * C[i * L + j]; 
         }
@@ -148,9 +148,9 @@ int knnsearch_exact(const double* Q, const double* C, size_t* IDX, double* D, si
     }
 
     // compute the distance matrix D by applying the formula D = sqrt(C.^2 -2*Q*C' + (Q.^2)')
-    for (size_t i = 0; i < M; i++)
+    for (int i = 0; i < M; i++)
     {
-        for (size_t j = 0; j < N; j++)
+        for (int j = 0; j < N; j++)
         {
             Dall[i * N + j] = sqrt(Dall[i * N + j] + sqrmag_Q[i] + sqrmag_C[j]);
         }
@@ -159,7 +159,7 @@ int knnsearch_exact(const double* Q, const double* C, size_t* IDX, double* D, si
     if (!sorted)
     {
         // apply Quick Select algorithm for each row of distance matrix
-        for (size_t i = 0; i < M; i++)
+        for (int i = 0; i < M; i++)
         {
             qselect(Dall + i * N, IDXall + i * N, 0, N - 1, K);
         }
@@ -167,7 +167,7 @@ int knnsearch_exact(const double* Q, const double* C, size_t* IDX, double* D, si
     else
     {
         // apply Quick Sort algorithm for each row of distance matrix
-        for (size_t i = 0; i < M; i++)
+        for (int i = 0; i < M; i++)
         {
             qsort_(Dall + i * N, IDXall + i * N, 0, N - 1);
         }      
@@ -175,9 +175,9 @@ int knnsearch_exact(const double* Q, const double* C, size_t* IDX, double* D, si
 
     // now copy the first K elements of each row of matrices
     // Dall, IDXall to D and IDX respectivelly
-    for (size_t i = 0; i < M; i++)
+    for (int i = 0; i < M; i++)
     {
-        for (size_t j = 0; j < K; j++)
+        for (int j = 0; j < K; j++)
         {
             D[i * K + j] = Dall[i * N + j];
             IDX[i * K + j] = IDXall[i * N + j] + 1;

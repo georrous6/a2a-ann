@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-typedef enum { DOUBLE_TYPE, SIZE_T_TYPE } MATRIX_TYPE;
+typedef enum { DOUBLE_TYPE, INT_TYPE } MATRIX_TYPE;
 
 
 typedef struct {
@@ -14,7 +14,7 @@ typedef struct {
 
 
 /**
- * Loads a matrix from a .mat file. Supports double and size_t data types.
+ * Loads a matrix from a .mat file. Supports double and int data types.
  * 
  * @param filename the name of the .mat file
  * @param matname the name of the matrix to be loaded
@@ -24,43 +24,43 @@ typedef struct {
  * or NULL if an error occured
  * @note memory deallocation should take place outside the function
  */
-void* load_matrix(const char *filename, const char* matname, size_t* rows, size_t* cols);
+void* load_matrix(const char *filename, const char* matname, int* rows, int* cols);
 
 
 /**
- * Converts a string to size_t.
+ * Converts a string to int.
  * 
  * @param value the evaluation of the string
  * @param str the string to be evaluated
  * @return EXIT_SUCCESS if the evaluation was successfull and EXIT_FAILURE otherwise
  */
-int str2size_t(size_t* value, const char *str);
+int str2int(int* value, const char *str);
 
 
 /**
- * Function to save a 2D matrix to a .mat file. Supports double and size_t data types.
+ * Function to save a 2D matrix to a .mat file. Supports double and int data types.
  *
  * @param mat Pointer to the matrix data.
  * @param matname The name of the matrix in the .mat file.
  * @param rows Number of rows in the matrix.
  * @param cols Number of columns in the matrix.
  * @param filename The name of the .mat file to save the matrix.
- * @param type The data type of the matrix (DOUBLE_TYPE or SIZE_T_TYPE).
+ * @param type The data type of the matrix (DOUBLE_TYPE or int_TYPE).
  * @return EXIT_SUCCESS if successful, otherwise EXIT_FAILURE.
  */
-int store_matrix(const void* mat, const char* matname, size_t rows, size_t cols, const char *filename, MATRIX_TYPE type);
+int store_matrix(const void* mat, const char* matname, int rows, int cols, const char *filename, MATRIX_TYPE type);
 
 
 /**
- * Prints the matrix to standard output. Supports double and size_t data types.
+ * Prints the matrix to standard output. Supports double and int data types.
  * 
  * @param mat the matrix (void pointer to accommodate different data types)
  * @param name the name of the matrix
  * @param rows the number of rows of the matrix
  * @param cols the number of columns of the matrix
- * @param type the data type of the matrix (DOUBLE_TYPE or SIZE_T_TYPE)
+ * @param type the data type of the matrix (DOUBLE_TYPE or int_TYPE)
  */
-void print_matrix(const void* mat, const char* name, size_t rows, size_t cols, MATRIX_TYPE type);
+void print_matrix(const void* mat, const char* name, int rows, int cols, MATRIX_TYPE type);
 
 
 /**
@@ -77,7 +77,7 @@ void print_matrix(const void* mat, const char* name, size_t rows, size_t cols, M
  * @param filename A pointer to a string that will hold the filename for the input data after parsing.
  * @param CNAME A pointer to a string that will hold the corpus matrix name after parsing.
  * @param QNAME A pointer to a string that will hold the queries matrix name after parsing.
- * @param K A pointer to a size_t variable that will hold the value of K (the number of nearest neighbors).
+ * @param K A pointer to a int variable that will hold the value of K (the number of nearest neighbors).
  * 
  * @return EXIT_SUCCESS (0) on successful parsing of the arguments.
  *         EXIT_FAILURE (1) if there is an error in parsing, including:
@@ -98,9 +98,9 @@ void print_matrix(const void* mat, const char* name, size_t rows, size_t cols, M
  * 3. <QNAME>: The name of the queries matrix.
  * 4. <K>: The number of nearest neighbors.
  *
- * The function converts the value of <K> from a string to size_t using strtoull.
+ * The function converts the value of <K> from a string to int using strtoull.
  */
-int parse_arguments(int argc, char *argv[], Options *opts, const char **filename, const char **CNAME, const char **QNAME, size_t *K);
+int parse_arguments(int argc, char *argv[], Options *opts, const char **filename, const char **CNAME, const char **QNAME, int *K);
 
 
 /**
