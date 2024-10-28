@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <getopt.h> 
+#include <dirent.h>
+#include <sys/types.h>
 
 
 void* load_matrix(const char *filename, const char* matname, int* rows, int* cols)
@@ -279,4 +281,116 @@ int parse_arguments(int argc, char *argv[], Options *opts, const char **filename
     }
 
     return EXIT_SUCCESS; // Successful parsing
+}
+
+
+int has_extension(const char *filename, const char *extension) 
+{
+    size_t len_filename = strlen(filename);
+    size_t len_extension = strlen(extension);
+
+    // Check if the file length is at least as long as the extension
+    if (len_filename < len_extension) 
+    {
+        return 0;
+    }
+
+    // Compare the end of filename with the extension
+    return strcmp(filename + len_filename - len_extension, extension) == 0;
+}
+
+
+int compare_file_paths(const void *a, const void *b) 
+{
+    return strcmp(*(const char **)a, *(const char **)b);
+}
+
+
+char **get_file_paths(const char *directory_path, const char *extension, size_t *file_count, int sorted)
+{
+    char **file_paths = NULL;
+    *file_count = 0;
+
+    DIR *dir = opendir(directory_path);
+    if (dir == NULL) 
+    {
+        fprintf(stderr, "Could not open directory \'%s\'\n", directory_path);
+        return NULL;
+    }
+
+
+    struct dirent *entry;
+    // first pass, count the number of files with the appropriate extension
+    int cnt = 0;
+    while ((entry = readdir(dir)) != NULL) 
+    {
+        // Skip the current and parent directory entries
+        if (entry->d_name[0] == '.' && (entry->d_name[1] == '\0' || (entry->d_name[1] == '.' && entry->d_name[2] == '\0'))) 
+        {
+            continue;
+        }
+
+        // file is not for testing
+        if (!has_extension(entry->d_name, extension))
+        {
+            continue;
+        }
+
+        cnt++;
+    }
+
+    // allocate memory for for the array of file paths
+    file_paths = (char **)malloc(sizeof(char *) * cnt);
+    if (!file_paths)
+    {
+        closedir(dir);
+        return NULL;
+    }
+
+
+    // second pass, store the file paths
+    cnt = 0;
+    rewinddir(dir);
+    const size_t MAX_PATH = 1024;
+    char file_path[MAX_PATH];
+    while ((entry = readdir(dir)) != NULL) 
+    {
+        // Skip the current and parent directory entries
+        if (entry->d_name[0] == '.' && (entry->d_name[1] == '\0' || (entry->d_name[1] == '.' && entry->d_name[2] == '\0'))) 
+        {
+            continue;
+        }
+
+        // file is not for testing
+        if (!has_extension(entry->d_name, extension))
+        {
+            continue;
+        }
+
+        snprintf(file_path, sizeof(file_path), "%s/%s", directory_path, entry->d_name);
+        file_paths[cnt] = strdup(file_path);
+        if (!file_paths[cnt])
+        {
+            fprintf(stderr, "Error allocating memory\n");
+            for (int i = 0; i < cnt; i++)
+            {
+                free(file_paths[i]);
+            }
+
+            free(file_paths);
+            closedir(dir);
+            return NULL;
+        }
+
+        cnt++;
+    }
+
+    closedir(dir);
+
+    // Sort file paths
+    if (sorted)
+        qsort(file_paths, cnt, sizeof(char *), compare_file_paths);
+
+    *file_count = cnt;
+    return file_paths;
 }

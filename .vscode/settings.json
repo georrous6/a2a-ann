@@ -2,6 +2,8 @@
     "files.associations": {
         "string.h": "c",
         "errno.h": "c",
-        "knnsearch.h": "c"
+        "knnsearch.h": "c",
+        "ioutil.h": "c",
+        "stdio.h": "c"
     }
 }

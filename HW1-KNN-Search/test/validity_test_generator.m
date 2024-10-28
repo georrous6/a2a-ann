@@ -1,14 +1,21 @@
+clc, clearvars, close all;
+
 % some edge case tests
 C = 7.2;
 Q = 3.7;
 K = int32(1);
+
+% Create directory if it doesn't exist
+if ~exist('validity_tests', 'dir')
+    mkdir('validity_tests');
+end
 
 [IDX, D] = knnsearch(C, Q, 'K', K, 'SortIndices', true);
 
 % Convert IDX to int32 before saving
 IDX = int32(IDX);
 
-save('test1.mat', 'C', 'Q', 'K', 'D', 'IDX');
+save('validity_tests/test01.mat', 'C', 'Q', 'K', 'D', 'IDX');
 
 C = [4.7, 5.2, 4.9; 0, 1.1, 2; 2.4, 6.7, 3.3];
 Q = [3.7, 1.2, 4.6];
@@ -19,10 +26,11 @@ K = int32(2);
 % Convert IDX to int32 before saving
 IDX = int32(IDX);
 
-save('test2.mat', 'C', 'Q', 'K', 'D', 'IDX');
+save('validity_tests/test02.mat', 'C', 'Q', 'K', 'D', 'IDX');
 
 MAX_SIZE = 1000;
-for i = 3:50
+NTESTS = 50;
+for i = 3:NTESTS
     M = randi(MAX_SIZE);
     N = randi(MAX_SIZE);
     L = randi(MAX_SIZE);
@@ -34,7 +42,11 @@ for i = 3:50
 
     % Convert IDX to int32 before saving
     IDX = int32(IDX);
-    save(sprintf('test%d.mat', i), 'C', 'Q', 'K', 'D', 'IDX');
+    if i < 10
+        save(sprintf('validity_tests/test0%d.mat', i), 'C', 'Q', 'K', 'D', 'IDX');
+    else
+        save(sprintf('validity_tests/test%d.mat', i), 'C', 'Q', 'K', 'D', 'IDX');
+    end
 end
 
-disp('Test files generated successfully');
+disp('Validity test files generated successfully');

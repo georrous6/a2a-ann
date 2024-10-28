@@ -25,8 +25,8 @@ file(GLOB SOURCES src/*.c)
 
 # Add the executables
 add_executable(knnsearch_exact knnsearch_exact.c ${SOURCES})
-add_executable(tests tests.c ${SOURCES})
+add_executable(validity_tests validity_tests.c ${SOURCES})
 
 # Link libraries
 target_link_libraries(knnsearch_exact ${OpenBLAS_LIBRARIES} ${MATIO_LIBRARIES} ${HDF5_LIBRARIES} m)
-target_link_libraries(tests ${OpenBLAS_LIBRARIES} ${MATIO_LIBRARIES} ${HDF5_LIBRARIES} m)
+target_link_libraries(validity_tests ${OpenBLAS_LIBRARIES} ${MATIO_LIBRARIES} ${HDF5_LIBRARIES} m)

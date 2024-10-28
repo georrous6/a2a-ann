@@ -3,6 +3,9 @@
 
 #include <stddef.h>
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 typedef enum { DOUBLE_TYPE, INT_TYPE } MATRIX_TYPE;
 
 
@@ -39,6 +42,7 @@ int str2int(int* value, const char *str);
 
 /**
  * Function to save a 2D matrix to a .mat file. Supports double and int data types.
+ * If the file already exists it overwrites it and if it doesn't it creates it.
  *
  * @param mat Pointer to the matrix data.
  * @param matname The name of the matrix in the .mat file.
@@ -109,6 +113,39 @@ int parse_arguments(int argc, char *argv[], Options *opts, const char **filename
  * @param program_name the name of the program
  */
 void print_usage(const char *program_name);
+
+
+/**
+ * Checks if a file has a specific extension
+ * 
+ * @param filename the name of the file
+ * @param extension the extension
+ * @return returns 0 if the file does not have the specified extension
+ * and 1 otherwise
+ */
+int has_extension(const char *filename, const char *extension);
+
+
+/**
+ * Function to compare file paths alphabetically for get_files_sorted.
+ * 
+ * @param a the first file path
+ * @param b the second file path
+ * @return 0 if a == b, 1 if a > b and -1 if a < b
+ */
+int compare_file_paths(const void *a, const void *b);
+
+
+/**
+ * Returns the paths of the files that have a specific extension in a directory.
+ * 
+ * @param directory_path The path to the directory
+ * @param extension The file extension to search for
+ * @param file_count The number of files found
+ * @param sorted Flag for sorting the file paths. If set to a non negative value,
+ * the file paths are returned in ascending order, otherwise no sorting is applied.
+ */
+char **get_file_paths(const char *directory_path, const char *extension, size_t *file_count, int sorted);
 
 
 #endif

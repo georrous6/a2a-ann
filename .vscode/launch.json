@@ -23,11 +23,32 @@
             "preLaunchTask": "build with gcc"
         },
         {
-            "name": "Debug tests (gdb)",
+            "name": "Debug validity tests (gdb)",
             "type": "cppdbg",
             "request": "launch",
             "program": "${fileDirname}/build/${fileBasenameNoExtension}",
-            "args": ["${fileDirname}/test"],
+            "args": ["${fileDirname}/test/validity_tests"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "build with gcc"
+        },
+        {
+            "name": "Debug performance tests (gdb)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${fileDirname}/build/${fileBasenameNoExtension}",
+            "args": ["${fileDirname}/test/performance_tests", "${fileDirname}/test/my_execution_times.mat"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

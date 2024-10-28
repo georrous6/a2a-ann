@@ -73,6 +73,12 @@ void qsort_(double *arr, int *idx, int l, int r)
 
 int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, int M, int N, int L, int K, int sorted)
 {
+    if (K <= 0 || K > N)
+    {
+        fprintf(stderr, "Invalid value for K: %d\n", K);
+        return EXIT_FAILURE;
+    }
+
     // matrix to store the distances between all row vectors of matrix Q
     // and all row vectors of matrix C
     double *Dall = (double *)malloc(M * N * sizeof(double));
