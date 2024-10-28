@@ -73,28 +73,30 @@ void qsort_(double *arr, int *idx, int l, int r)
 
 int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, int M, int N, int L, int K, int sorted)
 {
+    int status = EXIT_FAILURE;
+    double *Dall = NULL, *sqrmag_Q = NULL, *sqrmag_C = NULL;
+    int *IDXall = NULL;
     if (K <= 0 || K > N)
     {
         fprintf(stderr, "Invalid value for K: %d\n", K);
-        return EXIT_FAILURE;
+        return status;
     }
 
     // matrix to store the distances between all row vectors of matrix Q
     // and all row vectors of matrix C
-    double *Dall = (double *)malloc(M * N * sizeof(double));
+    Dall = (double *)malloc(M * N * sizeof(double));
     if (!Dall)
     {
         fprintf(stderr, "Error allocating memory for distance matrix\n");
-        return EXIT_FAILURE;
+        goto cleanup;
     }
 
     // input data indices of nearest neighbors
-    int *IDXall = (int *)malloc(M * N * sizeof(int));
+    IDXall = (int *)malloc(M * N * sizeof(int));
     if (!IDXall)
     {
         fprintf(stderr, "Error allocating memory for index matrix\n");
-        free(Dall);
-        return EXIT_FAILURE;
+        goto cleanup;
     }
 
     // initialize index matrix
@@ -110,47 +112,31 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, int M
     cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, L, -2.0, Q, L, C, L, 0.0, Dall, N);
 
     // stores the squares of the magnitudes of the row vectors of matrix Q
-    double *sqrmag_Q = (double *)malloc(M * sizeof(double));
+    sqrmag_Q = (double *)malloc(M * sizeof(double));
     if (!sqrmag_Q)
     {
         fprintf(stderr, "Error allocating memory for square magnitudes vector\n");
-        free(Dall);
-        free(IDXall);
-        return EXIT_FAILURE;
+        goto cleanup;
     }
 
     // stores the squares of the magnitudes of the row vectors of matrix C
-    double *sqrmag_C = (double *)malloc(N * sizeof(double));
+    sqrmag_C = (double *)malloc(N * sizeof(double));
     if (!sqrmag_C)
     {
         fprintf(stderr, "Error allocating memory for square magnitudes vector\n");
-        free(sqrmag_Q);
-        free(Dall);
-        free(IDXall);
-        return EXIT_FAILURE;
+        goto cleanup;
     }
 
-    double tmp;
     // compute the square of magnitudes of the row vectors of matrix Q
     for (int i = 0; i < M; i++)
     {
-        tmp = 0.0;
-        for (int j = 0; j < L; j++)
-        {
-            tmp += Q[i * L + j] * Q[i * L + j]; 
-        }
-        sqrmag_Q[i] = tmp;
+        sqrmag_Q[i] = cblas_ddot(L, Q + i * L, 1, Q + i * L, 1);
     }
 
     // compute the square of magnitudes of the row vectors of matrix C
     for (int i = 0; i < N; i++)
     {
-        tmp = 0.0;
-        for (int j = 0; j < L ; j++)
-        {
-            tmp += C[i * L + j] * C[i * L + j]; 
-        }
-        sqrmag_C[i] = tmp;
+        sqrmag_C[i] = cblas_ddot(L, C + i * L, 1, C + i * L, 1);
     }
 
     // compute the distance matrix D by applying the formula D = sqrt(C.^2 -2*Q*C' + (Q.^2)')
@@ -190,9 +176,12 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, int M
         }
     }
 
-    free(sqrmag_C);
-    free(sqrmag_Q);
-    free(Dall);
-    free(IDXall);
-    return EXIT_SUCCESS;
+    status = EXIT_SUCCESS;
+
+    cleanup:
+    if (sqrmag_C) free(sqrmag_C);
+    if (sqrmag_Q) free(sqrmag_Q);
+    if (Dall) free(Dall);
+    if (IDXall) free(IDXall);
+    return status;
 }
