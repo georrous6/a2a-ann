@@ -2,11 +2,32 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug (gdb)",
+            "name": "Debug knnsearch (gdb)",
             "type": "cppdbg",
             "request": "launch",
             "program": "${fileDirname}/build/${fileBasenameNoExtension}",
-            "args": ["${fileDirname}/test/data.mat", "C", "Q", "1"],
+            "args": ["${fileDirname}/test/test01.mat", "C", "Q", "1"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "build with gcc"
+        },
+        {
+            "name": "Debug tests (gdb)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${fileDirname}/build/${fileBasenameNoExtension}",
+            "args": ["${fileDirname}/test"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

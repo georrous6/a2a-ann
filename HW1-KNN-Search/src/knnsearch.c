@@ -20,7 +20,7 @@ int partition(double *arr, int *idx, int l, int r)
 {
     double pivot = arr[r];
     int i = l;
-    for (int j = l; r > 0 && j <= r - 1; j++) 
+    for (int j = l; j <= r - 1; j++) 
     {
         if (arr[j] <= pivot) 
         {

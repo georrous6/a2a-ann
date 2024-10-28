@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
     printf("Filename: %s\n", filename);
     printf("CNAME: %s\n", CNAME);
     printf("QNAME: %s\n", QNAME);
-    printf("K: %zu\n", K);
+    printf("K: %d\n", K);
     printf("Sorted: %d\n", opts.sorted);
     printf("Output Filename: %s\n", opts.output_filename ? opts.output_filename : "None");
     printf("Number of Threads: %d\n", opts.num_threads);
@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    if (knnsearch_exact(Q, C, IDX, D, QM, CM, QN, K, 0))
+    if (knnsearch_exact(Q, C, IDX, D, QM, CM, QN, K, opts.sorted))
     {
         free(C);
         free(Q);

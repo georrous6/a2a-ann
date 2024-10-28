@@ -18,7 +18,7 @@ void* load_matrix(const char *filename, const char* matname, int* rows, int* col
     matfp = Mat_Open(filename, MAT_ACC_RDONLY);
     if (!matfp) 
     {
-        fprintf(stderr, "Error opening MAT file: %s\n", strerror(errno));
+        fprintf(stderr, "Error opening MAT file \'%s\': %s\n", filename, strerror(errno));
         return NULL;
     }
 
@@ -53,17 +53,17 @@ void* load_matrix(const char *filename, const char* matname, int* rows, int* col
         {
             for (int j = 0; j < *cols; j++) 
             {
-                ((double *)data)[i * (*cols) + j] = ((double*)matvar->data)[j * (*rows) + i];
+                ((double *)data)[i * (*cols) + j] = ((double *)matvar->data)[j * (*rows) + i];
             }
         }
     }
-    else if (matvar->rank == 2 && matvar->data_type == MAT_T_UINT64)
+    else if (matvar->rank == 2 && matvar->data_type == MAT_T_INT32)
     {
         // Store dimensions
         *rows = matvar->dims[0];
         *cols = matvar->dims[1];
 
-        // Allocate memory for a int (uint64_t) matrix
+        // Allocate memory for a int matrix
         data = (int *)malloc((*rows) * (*cols) * sizeof(int));
         if (!data) 
         {
@@ -78,7 +78,7 @@ void* load_matrix(const char *filename, const char* matname, int* rows, int* col
         {
             for (int j = 0; j < *cols; j++) 
             {
-                ((int*)data)[i * (*cols) + j] = ((uint64_t*)matvar->data)[j * (*rows) + i];
+                ((int*)data)[i * (*cols) + j] = ((int *)matvar->data)[j * (*rows) + i];
             }
         }
     }
@@ -113,7 +113,7 @@ int store_matrix(const void* mat, const char* matname, int rows, int cols, const
         return EXIT_FAILURE;
     }
 
-    int dims[2] = {rows, cols};
+    size_t dims[2] = {rows, cols};
     matvar_t *matvar = NULL;
     
     if (type == DOUBLE_TYPE)
@@ -165,7 +165,7 @@ void print_matrix(const void* mat, const char* name, int rows, int cols, MATRIX_
             }
             else if (type == INT_TYPE)
             {
-                printf("%zu ", ((int *)mat)[i * cols + j]); // %zu is the format specifier for int
+                printf("%d ", ((int *)mat)[i * cols + j]); // %zu is the format specifier for int
             }
         }
         printf("\n");
@@ -272,9 +272,9 @@ int parse_arguments(int argc, char *argv[], Options *opts, const char **filename
     *filename = argv[optind];
     *CNAME = argv[optind + 1];
     *QNAME = argv[optind + 2];
-    if (str2int(K, argv[optind + 3]) || *K == 0) // Convert K to int
+    if (str2int(K, argv[optind + 3]) || *K <= 0) // Convert K to int
     {
-        fprintf(stderr, "The value for K must be positive\n");
+        fprintf(stderr, "Invalid value for K parameter\n");
         return EXIT_FAILURE;
     }
 
