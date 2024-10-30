@@ -87,7 +87,7 @@ void qsort_(double *arr, int *idx, int l, int r);
  * @note The user is responsible to pass IDX and D matrices with the appropriate
  * dimensions
  */
-int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const int M, const int N, const int L, const int K, const int sorted);
+int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const int M, const int N, const int L, int K, const int sorted);
 
 
 int alloc_memory(double **Dall, int **IDXall, double **sqrmag_Q, double **sqrmag_C, const int M, const int N, int *MBLOCK_SIZE);
