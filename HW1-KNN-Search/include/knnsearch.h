@@ -3,6 +3,21 @@
 
 #include <stddef.h>
 
+#define ALLOC_MAX_ITERS 10
+#define MAX_MEMORY_USAGE_RATIO 0.8 // Use up to 80% of available memory
+#define MIN_THREAD_CORPUS_SIZE 50
+
+
+typedef struct THREAD_ARGS {
+    double *Dall;
+    int *IDXall;
+    int K;
+    int N;
+    int MBLOCK_THREAD_SIZE;
+    int sorted;
+} THREAD_ARGS;
+
+
 /**
  * Function to swap elements from two arrays.
  * 
@@ -72,6 +87,15 @@ void qsort_(double *arr, int *idx, int l, int r);
  * @note The user is responsible to pass IDX and D matrices with the appropriate
  * dimensions
  */
-int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, int M, int N, int L, int K, int sorted);
+int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const int M, const int N, const int L, const int K, const int sorted);
+
+
+int alloc_memory(double **Dall, int **IDXall, double **sqrmag_Q, double **sqrmag_C, const int M, const int N, int *MBLOCK_SIZE);
+
+
+unsigned long get_available_memory_bytes();
+
+
+int get_thread_count(int MBLOCK_SIZE, int N);
 
 #endif

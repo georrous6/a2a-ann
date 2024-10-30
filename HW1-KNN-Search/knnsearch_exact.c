@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include "ioutil.h"
 #include "knnsearch.h"
 #include "ioutil.h"
@@ -51,7 +52,7 @@ int main(int argc, char *argv[])
 
     if (K > CM)
     {
-        fprintf(stderr, "Invalid K value; must be smaller or equal to the corpus size i.e. K <= %zu\n", CM);
+        fprintf(stderr, "Invalid K value; must be smaller or equal to the corpus size i.e. K <= %d\n", CM);
         free(C);
         free(Q);
         free(opts.output_filename);
@@ -79,6 +80,11 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
+    printf("Number of queries: %d\n", QM);
+    printf("Number of corpus data: %d\n", CM);
+    printf("Dimension: %d\n", CN);
+
+    clock_t start = clock();
     if (knnsearch_exact(Q, C, IDX, D, QM, CM, QN, K, opts.sorted))
     {
         free(C);
@@ -89,10 +95,13 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    print_matrix(C, CNAME, CM, CN, DOUBLE_TYPE);
-    print_matrix(Q, QNAME, QM, QN, DOUBLE_TYPE);
-    print_matrix(D, "D", QM, K, DOUBLE_TYPE);
-    print_matrix(IDX, "IDX", QM, K, INT_TYPE);
+    clock_t end = clock();
+    printf("Execution time: %lf sec\n", ((double) (end - start)) / CLOCKS_PER_SEC);
+
+    // print_matrix(C, CNAME, CM, CN, DOUBLE_TYPE);
+    // print_matrix(Q, QNAME, QM, QN, DOUBLE_TYPE);
+    // print_matrix(D, "D", QM, K, DOUBLE_TYPE);
+    // print_matrix(IDX, "IDX", QM, K, INT_TYPE);
 
     free(C);
     free(Q);

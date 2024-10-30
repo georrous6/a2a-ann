@@ -49,4 +49,15 @@ for i = 3:NTESTS
     end
 end
 
+%% Test over very large data
+Q = rand(100, 2);
+C = rand(10000000, 2);
+K = int32(10);
+tic;
+[IDX, D] = knnsearch(C, Q, 'K', K, 'SortIndices', true);
+ellapsed_time = toc;
+fprintf("Ellapsed time: %f sec\n", ellapsed_time);
+IDX = int32(IDX);
+save('validity_tests/test51.mat', 'C', 'Q', 'K', 'D', 'IDX');
+
 disp('Validity test files generated successfully');

@@ -1,20 +1,22 @@
 clc, clearvars, close all;
 
-M = 1000; % the queries size
-N = 1000; % the corpus size
+M = 10; % the queries size
+L = 2; % the dimension
+K = int32(8);
+NTESTS = 22;
 
-L = 10:10:500;
-matlab_execution_times = zeros(1, length(L));
+N = zeros(1, NTESTS); % the corpus size
+matlab_execution_times = zeros(1, NTESTS);
 
 % Create directory if it doesn't exist
 if ~exist('performance_tests', 'dir')
     mkdir('performance_tests');
 end
 
-for i = 1:length(L)
-    C = rand(N, L(i));
-    Q = rand(M, L(i));
-    K = int32(N);
+for i = 1:NTESTS
+    N(i) = 2^i;
+    C = rand(N(i), L);
+    Q = rand(M, L);
 
     tic;
     [IDX, D] = knnsearch(C, Q, 'K', K, 'SortIndices', false);
@@ -27,5 +29,5 @@ for i = 1:length(L)
     end
 end
 
-save('matlab_execution_times.mat', 'matlab_execution_times', 'L');
+save('matlab_execution_times.mat', 'matlab_execution_times', 'N', 'K', 'M', 'L');
 disp('Performance test files generated successfully');

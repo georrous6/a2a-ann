@@ -18,7 +18,8 @@
                 "-L/usr/local/lib",
                 "-lmatio",
                 "-lopenblas",
-                "-lm"
+                "-lm",
+                "-lpthread"
             ],
             "options": {
                 "cwd": "${fileDirname}"

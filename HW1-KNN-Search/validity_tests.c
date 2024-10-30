@@ -52,7 +52,8 @@ int test_case(const char *filename, double tolerance)
         {
             x = expD[i * (*K) + j];
             y = D[i * (*K) + j];
-            if (fabs(x - y) >= tolerance * MAX(x, y)) goto cleanup;
+            if (fabs(x - y) >= tolerance * MAX(x, y)) 
+                goto cleanup;
         }
     }
 
@@ -60,7 +61,8 @@ int test_case(const char *filename, double tolerance)
     {
         for (int j = 0; j < *K; j++)
         {
-            if (expIDX[i * (*K) + j] != IDX[i * (*K) + j]) goto cleanup;
+            if (expIDX[i * (*K) + j] != IDX[i * (*K) + j]) 
+                goto cleanup;
         }
     }
 

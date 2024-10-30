@@ -4,6 +4,9 @@
         "errno.h": "c",
         "knnsearch.h": "c",
         "ioutil.h": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "openblas_config.h": "c",
+        "math.h": "c",
+        "stdlib.h": "c"
     }
 }
