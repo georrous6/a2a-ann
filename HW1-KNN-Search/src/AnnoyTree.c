@@ -6,22 +6,6 @@
 #include <cblas.h>
 
 
-typedef struct Node {
-    double *points;      // points of the node
-    int num_points;      // number of points of the node
-    struct Node *left;   // left node
-    struct Node *right;  // right node
-    double *direction;   // the direction vector perpendicular to the hyperplane spliting the points into two subsets
-    double threshold;    // threshold for partitioning points into two subsets
-} Node;
-
-
-typedef struct AnnoyTree {
-    int dimension;       // the dimension of the points
-    Node *root;          // the root node of the tree
-} AnnoyTree;
-
-
 double* perpendicular_bisector(double *p1, double *p2, int dimension, double *threshold) 
 {
     double *direction = (double*)malloc(dimension * sizeof(double));

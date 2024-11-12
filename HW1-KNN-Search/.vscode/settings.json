@@ -7,6 +7,7 @@
         "stdio.h": "c",
         "openblas_config.h": "c",
         "math.h": "c",
-        "stdlib.h": "c"
+        "stdlib.h": "c",
+        "cblas.h": "c"
     }
 }
