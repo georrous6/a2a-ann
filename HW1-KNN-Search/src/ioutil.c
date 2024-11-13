@@ -211,6 +211,7 @@ void print_usage(const char *program_name)
     fprintf(stderr, "Usage: %s <filename> <CNAME> <QNAME> <K> [-s] [-o output_file] [-jN]\n", program_name);
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -s, --sorted          Use sorted data\n");
+    fprintf(stderr, "  -a, --approx          For approximate solution\n");
     fprintf(stderr, "  -o, --output <file>   Specify output file (default is stdout)\n");
     fprintf(stderr, "  -jN                   Number of threads (N should be an integer)\n");
 }
@@ -222,13 +223,15 @@ int parse_arguments(int argc, char *argv[], Options *opts, const char **filename
     
     // Initialize options
     opts->sorted = 0;  // Default: not sorted
+    opts->approx = 0;  // Find the exact solution
     opts->output_filename = NULL; // Default: no output filename
-    opts->num_threads = 1; // Default: 1 thread
+    opts->num_threads = -1; // Allows the program to automatically specify the number of threads
 
     // Parse optional arguments
-    const char *optstring = "so:j:";
+    const char *optstring = "sao:j:";
     const struct option long_options[] = {
         {"sorted", no_argument, NULL, 's'},
+        {"approx", no_argument, NULL, 'a'},
         {"output", required_argument, NULL, 'o'},
         {"threads", required_argument, NULL, 'j'},
         {NULL, 0, NULL, 0}
@@ -240,6 +243,9 @@ int parse_arguments(int argc, char *argv[], Options *opts, const char **filename
         {
             case 's':
                 opts->sorted = 1; // Set the sorted flag
+                break;
+            case 'a':
+                opts->approx = 0;  // Set the approximate solution flag
                 break;
             case 'o':
                 opts->output_filename = strdup(optarg); // Allocate memory for output filename

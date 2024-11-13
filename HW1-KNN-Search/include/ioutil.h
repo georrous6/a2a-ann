@@ -11,6 +11,7 @@ typedef enum { DOUBLE_TYPE, INT_TYPE } MATRIX_TYPE;
 
 typedef struct {
     int sorted;            // Flag for sorted data
+    int approx;            // Flag for approximate solution
     char *output_filename; // Output filename
     int num_threads;       // Number of threads
 } Options;

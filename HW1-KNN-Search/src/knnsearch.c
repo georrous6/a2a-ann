@@ -1,12 +1,19 @@
 #include "knnsearch.h"
+#include "Queue.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <cblas.h>
 #include <math.h>
-#include <time.h>
 #include <unistd.h>
 #include <sys/sysinfo.h>
 #include <pthread.h>
+
+
+pthread_mutex_t mutexQueue;
+pthread_cond_t condQueue;
+pthread_cond_t condTasksComplete;
+int isActive;
+int runningTasks;
 
 
 void swap(double *arr, int *idx, int i, int j) 
@@ -75,7 +82,7 @@ void qsort_(double *arr, int *idx, int l, int r)
 }
 
 
-int get_thread_count(int MBLOCK_SIZE, int N)
+int get_num_cores()
 {
     const long num_cores = sysconf(_SC_NPROCESSORS_ONLN);  // Number of online processors
     if (num_cores < 1) 
@@ -84,8 +91,6 @@ int get_thread_count(int MBLOCK_SIZE, int N)
         return 1;
     }
 
-    if (MBLOCK_SIZE < 1) return 1;
-    if (MBLOCK_SIZE <= (int)num_cores) return MBLOCK_SIZE;
     return (int)num_cores;
 }
 
@@ -106,57 +111,54 @@ int alloc_memory(double **Dall, int **IDXall, double **sqrmag_Q, double **sqrmag
 {
     unsigned long available_memory = get_available_memory_bytes();
     unsigned long max_allocable_memory = (unsigned long)(available_memory * MAX_MEMORY_USAGE_RATIO);
-    int i = 0;
-    *MBLOCK_MAX_SIZE = M;
 
-    while (i < ALLOC_MAX_ITERS && *MBLOCK_MAX_SIZE > 0)
+    *MBLOCK_MAX_SIZE = M; 
+    unsigned long required_memory = (*MBLOCK_MAX_SIZE) * N * sizeof(int) +
+                                    (*MBLOCK_MAX_SIZE) * N * sizeof(double) +
+                                    (*MBLOCK_MAX_SIZE) * sizeof(double) +
+                                    N * sizeof(double);
+    
+    if (required_memory > max_allocable_memory)
     {
-        unsigned long required_memory = (*MBLOCK_MAX_SIZE) * N * sizeof(int) +
-                                        (*MBLOCK_MAX_SIZE) * N * sizeof(double) +
-                                        (*MBLOCK_MAX_SIZE) * sizeof(double) +
-                                        N * sizeof(double);
-
-
-        if (required_memory > max_allocable_memory) 
-        {
-            // If memory exceeds limit, halve the block size and retry
-            *MBLOCK_MAX_SIZE = (*MBLOCK_MAX_SIZE) / 2 + 1;
-            i++;
-            continue;
-        }
-
-        *IDXall = (int *)malloc((*MBLOCK_MAX_SIZE) * N * sizeof(int));
-        *Dall = (double *)malloc((*MBLOCK_MAX_SIZE) * N * sizeof(double));
-        *sqrmag_Q = (double *)malloc((*MBLOCK_MAX_SIZE) * sizeof(double));
-        *sqrmag_C = (double *)malloc(N * sizeof(double));
-
-        if ((*IDXall) && (*Dall) && (*sqrmag_C) && (*sqrmag_Q))
-        {
-            return EXIT_SUCCESS;
-        }
-
-        if (*sqrmag_C) free(*sqrmag_C);
-        if (*sqrmag_Q) free(*sqrmag_Q);
-        if (*Dall) free(*Dall);
-        if (*IDXall) free(*IDXall);
-
-        // adjust the block size and retry
-        *MBLOCK_MAX_SIZE = (*MBLOCK_MAX_SIZE) / 2 + 1;
-        i++;
+        *MBLOCK_MAX_SIZE = (max_allocable_memory - N * sizeof(double)) / 
+                            (N * sizeof(int) + N * sizeof(double) + sizeof(double));
     }
+
+    if (*MBLOCK_MAX_SIZE < 1) 
+    {
+        fprintf(stderr, "Error: Insufficient memory for minimum block size.\n");
+        return EXIT_FAILURE;
+    }
+
+
+
+    *IDXall = (int *)malloc((*MBLOCK_MAX_SIZE) * N * sizeof(int));
+    *Dall = (double *)malloc((*MBLOCK_MAX_SIZE) * N * sizeof(double));
+    *sqrmag_Q = (double *)malloc((*MBLOCK_MAX_SIZE) * sizeof(double));
+    *sqrmag_C = (double *)malloc(N * sizeof(double));
+
+    if ((*IDXall) && (*Dall) && (*sqrmag_C) && (*sqrmag_Q))
+    {
+        return EXIT_SUCCESS;
+    }
+
+    if (*sqrmag_C) free(*sqrmag_C);
+    if (*sqrmag_Q) free(*sqrmag_Q);
+    if (*Dall) free(*Dall);
+    if (*IDXall) free(*IDXall);
 
     return EXIT_FAILURE;
 }
 
 
-void *qfunc(void *args)
+void executeKNNExactTask(const KNNExactTask *task)
 {
-    double *Dall = ((THREAD_ARGS *) args)->Dall;
-    int *IDXall = ((THREAD_ARGS *) args)->IDXall;
-    int MBLOCK_THREAD_SIZE = ((THREAD_ARGS *) args)->MBLOCK_THREAD_SIZE;
-    int N = ((THREAD_ARGS *) args)->N;
-    int K = ((THREAD_ARGS *) args)->K;
-    int sorted = ((THREAD_ARGS *) args)->sorted;
+    double *Dall = task->Dall;
+    int *IDXall = task->IDXall;
+    int MBLOCK_THREAD_SIZE = task->MBLOCK_THREAD_SIZE;
+    int N = task->N;
+    int K = task->K;
+    int sorted = task->sorted;
     if (!sorted)
     {
         // apply Quick Select algorithm for each row of distance matrix
@@ -172,14 +174,15 @@ void *qfunc(void *args)
         {
             qsort_(Dall + i * N, IDXall + i * N, 0, N - 1);
         }      
-    }   
-
-    pthread_exit(NULL);
+    }
+    printf("Thread finished execution\n");
 }
 
 
-int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const int M, const int N, const int L, int K, const int sorted)
+int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const int M, const int N, const int L, int K, const int sorted, int nthreads)
 {
+    isActive = 1;
+    runningTasks = 0;
     double *Dall = NULL, *sqrmag_Q = NULL, *sqrmag_C = NULL;
     int *IDXall = NULL;
     int MBLOCK_MAX_SIZE, NBLOCK_MAX_SIZE;
@@ -192,17 +195,46 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
 
     K = K > N ? N : K;  // The k-nearest points are greater than the corpus size
 
-    clock_t start = clock();
-
+    // Allocate the appropriate amount of memory for the matrices and compute the
+    // maximum coprus size that fits in memory
     if (alloc_memory(&Dall, &IDXall, &sqrmag_Q, &sqrmag_C, M, N, &MBLOCK_MAX_SIZE))
     {
         fprintf(stderr, "knnsearch_exact: Error allocating memory\n");
         return status;
     }
 
-    clock_t end = clock();
-    //printf("Ellapsed time (memory allocation): %lf\n", ((double) (end - start)) / CLOCKS_PER_SEC);
     printf("MBLOCK_MAX_SIZE: %d\n", MBLOCK_MAX_SIZE);
+    printf("Threads No: %d\n", nthreads);
+    pthread_t* threads = NULL;
+    pthread_attr_t attr;
+    Queue tasksQueue;
+
+    // Create the threads if multithreading is desired
+    if (nthreads > 1)
+    {
+        Queue_init(&tasksQueue, sizeof(KNNExactTask));
+        pthread_attr_init(&attr);
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+        pthread_mutex_init(&mutexQueue, NULL);
+        pthread_cond_init(&condQueue, NULL);
+        pthread_cond_init(&condTasksComplete, NULL);
+
+        threads = (pthread_t *)malloc(sizeof(pthread_t) * nthreads);
+        if (!threads)
+        {
+            fprintf(stderr, "Error allocating memory for threads\n");
+            goto cleanup;
+        }
+
+        for (int t = 0; t < nthreads; t++)
+        {
+            if (pthread_create(&threads[t], NULL, startKNNExactThread, (void *)&tasksQueue))
+            {
+                fprintf(stderr, "Error creating thread %d\n", t + 1);
+                goto cleanup;
+            }
+        }
+    }
 
 
     for (int M_INDEX = 0; M_INDEX * MBLOCK_MAX_SIZE < M; M_INDEX++) 
@@ -222,12 +254,8 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
 
 
         // compute D = -2*Q*C'
-        start = clock();
         cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, MBLOCK_SIZE, N, L, -2.0, Q + Q_OFFSET, L, C, L, 0.0, Dall, N);
-        end = clock();
-        //printf("Ellapsed time (matrix multiplication): %lf\n", ((double) (end - start)) / CLOCKS_PER_SEC);
 
-        start = clock();
         // compute the square of magnitudes of the row vectors of matrix Q
         for (int i = 0; i < MBLOCK_SIZE; i++)
         {
@@ -248,97 +276,59 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
                 Dall[i * N + j] = sqrt(Dall[i * N + j] + sqrmag_Q[i] + sqrmag_C[j]);
             }
         }
-        end = clock();
-        //printf("Ellapsed time (distance calculation): %lf\n", ((double) (end - start)) / CLOCKS_PER_SEC);
-
-        start = clock();
-        const int NTHREADS = get_thread_count(MBLOCK_SIZE, N);
-        if (NTHREADS == 1)  // no multithreading
+        
+        
+        if (nthreads == 1)  // no multithreading
         {
-            if (!sorted)
-            {
-                // apply Quick Select algorithm for each row of distance matrix
-                for (int i = 0; i < MBLOCK_SIZE; i++)
-                {
-                    qselect(Dall + i * N, IDXall + i * N, 0, N - 1, K);
-                }
-            }
-            else
-            {
-                // apply Quick Sort algorithm for each row of distance matrix
-                for (int i = 0; i < MBLOCK_SIZE; i++)
-                {
-                    qsort_(Dall + i * N, IDXall + i * N, 0, N - 1);
-                }      
-            }
+            KNNExactTask task = (KNNExactTask){Dall, IDXall, K, N, MBLOCK_SIZE, sorted};
+            executeKNNExactTask(&task);
         }
         else  // multithreading
         {
-            printf("Threads No: %d\n", NTHREADS);
-            pthread_attr_t attr;
-            pthread_t *threads = (pthread_t *)malloc(sizeof(pthread_t) * NTHREADS);
-            if (!threads)
+            // Create the tasks and add them to the queue
+            if (MBLOCK_SIZE / nthreads == 0)  // create only one task
             {
-                fprintf(stderr, "Error allocating memory for threads\n");
-                goto cleanup;
+                KNNExactTask task = (KNNExactTask){Dall, IDXall, K, N, MBLOCK_SIZE, sorted};
+                Queue_enqueue(&tasksQueue, (void *)&task);  // add task to the queue
+                runningTasks++;
+                printf("Adding task to the queue...\n");
             }
-
-            THREAD_ARGS *thread_args = malloc(NTHREADS * sizeof(THREAD_ARGS));
-            if (!thread_args) 
+            else  // split workload accross all the threads
             {
-                fprintf(stderr, "Error allocating memory for thread arguments\n");
-                free(threads);
-                goto cleanup;
-            }
-
-            pthread_attr_init(&attr);
-            pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-
-            int remainder = MBLOCK_SIZE % NTHREADS;
-            int MBLOCK_THREAD_SIZE = 0, D_THREAD_OFFSET = 0, rc;
-            for (int t = 0; t < NTHREADS; t++)
-            {
-                D_THREAD_OFFSET += MBLOCK_THREAD_SIZE * N;
-                MBLOCK_THREAD_SIZE = MBLOCK_SIZE / NTHREADS;
-                if (remainder > 0)
+                int remainder = MBLOCK_SIZE % nthreads;
+                int MBLOCK_THREAD_SIZE = 0, D_THREAD_OFFSET = 0;
+                for (int t = 0; t < nthreads; t++)
                 {
-                    remainder--;
-                    MBLOCK_THREAD_SIZE++;
-                }
+                    D_THREAD_OFFSET += MBLOCK_THREAD_SIZE * N;
+                    MBLOCK_THREAD_SIZE = MBLOCK_SIZE / nthreads;
+                    if (remainder > 0)
+                    {
+                        remainder--;
+                        MBLOCK_THREAD_SIZE++;
+                    }
 
-                thread_args[t] = (THREAD_ARGS){Dall + D_THREAD_OFFSET, IDXall + D_THREAD_OFFSET, K, N, MBLOCK_THREAD_SIZE, sorted};
-                rc = pthread_create(&threads[t], NULL, qfunc, &thread_args[t]);
-                if (rc)
-                {
-                    fprintf(stderr, "ERROR; return code from pthread_create() is %d\n", rc);
-                    free(threads);
-                    free(thread_args);
-                    goto cleanup;
-                }
-            }
-
-        	pthread_attr_destroy(&attr);
-	        for(int t = 0; t < NTHREADS; t++) 
-	        {
-    	        rc = pthread_join(threads[t], NULL);
-    	        if (rc) 
-		        {
-        	        printf("ERROR; return code from pthread_join() is %d\n", rc);
-        	        free(threads);
-                    free(thread_args);
-                    goto cleanup;
+                    KNNExactTask task = (KNNExactTask){Dall + D_THREAD_OFFSET, IDXall + D_THREAD_OFFSET, K, N, MBLOCK_THREAD_SIZE, sorted};
+                    Queue_enqueue(&tasksQueue, (void *)&task);  // add task to the queue
+                    runningTasks++;
+                    printf("Adding task to the queue...\n");
                 }
             }
 
-            free(thread_args);
-            free(threads);
+            pthread_cond_broadcast(&condQueue);  // Wake up all threads to assign them the tasks
+                
+            // Wait for all tasks in the current block to finish
+            pthread_mutex_lock(&mutexQueue);
+            while (runningTasks > 0)
+            {
+                printf("Main thread waiting for signal...\n");
+                pthread_cond_wait(&condTasksComplete, &mutexQueue);
+            }
+            pthread_mutex_unlock(&mutexQueue);
+            printf("Finished tasks of the block\n");
         }
-        end = clock();
-        //printf("Ellapsed time (Quick Select): %lf\n", ((double) (end - start)) / CLOCKS_PER_SEC);
 
         // now copy the first K elements of each row of matrices
         // Dall, IDXall to D and IDX respectivelly
-        start = clock();
         for (int i = 0; i < MBLOCK_SIZE; i++)
         {
             for (int j = 0; j < K; j++)
@@ -347,16 +337,93 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
                 IDX[D_OFFSET + i * K + j] = IDXall[i * N + j] + 1; // 1-based indexing
             }
         }
-        end = clock();
-        //printf("Ellapsed time (final initialization): %lf\n", ((double) (end - start)) / CLOCKS_PER_SEC);
+    }
+
+    if (nthreads > 1)
+    {
+        isActive = 0;  // Set termination flag for threads
+        printf("Signal threads to terminate\n");
+        pthread_cond_broadcast(&condQueue);  // Wake up all threads to allow them to exit
+
+        for (int t = 0; t < nthreads; t++)
+        {
+            if (pthread_join(threads[t], NULL))
+            {
+                fprintf(stderr, "Failed to join thread %d\n", t);
+                goto cleanup;
+            }
+        }
     }
 
     status = EXIT_SUCCESS;
 
 cleanup:
+    if (nthreads > 1)
+    {
+        Queue_destroy(&tasksQueue);
+        pthread_attr_destroy(&attr);
+        pthread_mutex_destroy(&mutexQueue);
+        pthread_cond_destroy(&condQueue);
+        pthread_cond_destroy(&condTasksComplete);
+        if (threads) free(threads);
+    }
     free(sqrmag_C);
     free(sqrmag_Q);
     free(Dall);
     free(IDXall);
     return status;
+}
+
+
+void *startKNNExactThread(void *pool)
+{
+    Queue* queue = (Queue *)pool;
+    KNNExactTask task;
+
+    while (isActive)
+    {
+        pthread_mutex_lock(&mutexQueue);
+        while (Queue_isEmpty(queue) && isActive)
+        {
+            pthread_cond_wait(&condQueue, &mutexQueue);
+        }
+
+        if (!isActive)  // Check again after waiting to exit if flag has changed
+        {
+            pthread_mutex_unlock(&mutexQueue);
+            break;
+        }
+
+        Queue_dequeue(queue, (void *)&task);
+                
+        pthread_mutex_unlock(&mutexQueue);
+        
+        printf("Thread executing task...\n");
+        executeKNNExactTask(&task);
+
+        pthread_mutex_lock(&mutexQueue);
+        runningTasks--;
+        if (runningTasks == 0)
+        {
+            // Signal main thread that all tasks for the current block are done
+            printf("Thread found empty queue\n");
+            pthread_cond_signal(&condTasksComplete);
+        }
+        pthread_mutex_unlock(&mutexQueue);
+    }
+
+    printf("Thread exiting...\n");
+    return NULL;
+}
+
+
+int knnsearch(const double* Q, const double* C, int* IDX, double* D, const int M, const int N, const int L, int K, const int sorted, int nthreads, int approx)
+{
+    // if the number of threads is -1 find automatically the appropriate number of threads, 
+    // otherwise use the number of threads the user passed explicitly
+    nthreads = nthreads == -1 ? get_num_cores() : nthreads;
+    if (!approx)  // find the exact solution
+    {
+        knnsearch_exact(Q, C, IDX, D, M, N, L, K, sorted, nthreads);
+    }
 }

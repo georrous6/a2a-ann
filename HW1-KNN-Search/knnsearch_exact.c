@@ -14,7 +14,9 @@ int main(int argc, char *argv[])
     if (parse_arguments(argc, argv, &opts, &filename, &CNAME, &QNAME, &K))
     {
         if (opts.output_filename)
+        {
             free(opts.output_filename);
+        }
         return EXIT_FAILURE;
     }
 
@@ -85,7 +87,7 @@ int main(int argc, char *argv[])
     printf("Dimension: %d\n", CN);
 
     clock_t start = clock();
-    if (knnsearch_exact(Q, C, IDX, D, QM, CM, QN, K, opts.sorted))
+    if (knnsearch(Q, C, IDX, D, QM, CM, QN, K, opts.sorted, 1, opts.approx))
     {
         free(C);
         free(Q);

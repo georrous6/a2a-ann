@@ -2,20 +2,64 @@
 #define KNNSEARCH_H
 
 #include <stddef.h>
+#include <pthread.h>
+#include "Queue.h"
 
-#define ALLOC_MAX_ITERS 10
-#define MAX_MEMORY_USAGE_RATIO 0.8 // Use up to 80% of available memory
+#define ALLOC_MAX_ITERS 10           // Maximum number of tries for memory allocation in the exact solution
+#define MAX_MEMORY_USAGE_RATIO 0.8   // Use up to 80% of available memory
 #define MIN_THREAD_CORPUS_SIZE 50
 
+extern pthread_mutex_t mutexQueue;        // Mutex for the tasks Queue
+extern pthread_cond_t condQueue;          // Condition variable for Queue
+extern pthread_cond_t condTasksComplete;  // Condition variable to signal task completion for a block
+extern int isActive;                      // Flag for threads to exit
+extern int runningTasks;                  // Holds the number of running tasks
 
-typedef struct THREAD_ARGS {
+/**
+ * Thread Task for the exact K-Nearest Neighbors problem
+ */
+typedef struct KNNExactTask {
     double *Dall;
     int *IDXall;
     int K;
     int N;
     int MBLOCK_THREAD_SIZE;
     int sorted;
-} THREAD_ARGS;
+} KNNExactTask;
+
+
+// /**
+//  * Thread pool for the exact K-Nearest Neighbors problem
+//  */
+// typedef struct KNNExactTaskPool {
+//     KNNExactTask* tasks;
+//     int taskCount;
+// } KNNExactTaskPool;
+
+
+// /**
+//  * Initializes the thread pool for the exact solution problem.
+//  * 
+//  * @param n_tasks the number of tasks, i.e. the size of the queue.
+//  * @return a pointer to the thread pool or NULL if an error occured
+//  */
+// KNNExactTaskPool *KNNExactTaskPool_init(int n_tasks);
+
+
+// /**
+//  * Destroys the thread pool for the exact solution problem.
+//  * 
+//  * @param pool the thread pool
+//  */
+// void KNNExactTaskPool_destroy(KNNExactTaskPool* pool);
+
+
+/**
+ * The function running on the threads for the exact solution.
+ * 
+ * @param pool the thread pool for the exact solution.
+ */
+void *startKNNExactThread(void *pool);
 
 
 /**
@@ -80,22 +124,71 @@ void qsort_(double *arr, int *idx, int l, int r);
  * @param N the number of rows of C
  * @param L the number of columns of Q and C
  * @param K the number of nearest neighbors
- * @param sorted if set to a non-negative value outputs 
- * the distances in ascending order
+ * @param sorted if set to a non-negative value outputs the distances in ascending order
+ * @param nthreads the number of threads to use. If set to -1 it automatically uses the appropriate number of threads
  * @return 0 on succesfull exit and 1 if an error occured
  * @note The function assumes that Q and C have the same number of columns.
  * @note The user is responsible to pass IDX and D matrices with the appropriate
  * dimensions
  */
-int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const int M, const int N, const int L, int K, const int sorted);
+int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const int M, const int N, const int L, int K, const int sorted, int nthreads);
 
 
+/**
+ * Allocates the appropriate memory for the matrices of the exact solution according 
+ * to the system's available resources. This function repeatedly splits the corpus data
+ * into blocks until it fits in the memory without exausting the system's resources.
+ * 
+ * @param Dall the distances matrix between all the corpus and the queries points
+ * @param IDXall the indexes matrix between all the corpus and the queries points
+ * @param sqrmag_Q a vector with the square magnitudes of all the query points
+ * @param sqrmag_C a vector with the square magnitudes of all the coprus points
+ * @param M the number of queries
+ * @param N the number of corpus data
+ * @param MBLOCK_SIZE the maximum number of the queries that the program is able to handle
+ * @return EXIT_SUCCESS if the allocation was successfull and EXIT_FAILURE if the maximum 
+ * number of iterations is reached, defined by ALLOC_MAX_ITERS
+ */
 int alloc_memory(double **Dall, int **IDXall, double **sqrmag_Q, double **sqrmag_C, const int M, const int N, int *MBLOCK_SIZE);
 
 
+/**
+ * Returns the system's available memory in bytes.
+ */
 unsigned long get_available_memory_bytes();
 
 
-int get_thread_count(int MBLOCK_SIZE, int N);
+/**
+ * Returns the system's available cores.
+ */
+int get_num_cores();
+
+
+/**
+ * Driver function for finding the exact of the approximate nearest neighbors 
+ * for each of the queries Q in corpus C.
+ * 
+ * @param Q the query points (M x L)
+ * @param C the corpus points (N x L)
+ * @param IDX the matrix of indices (M x K)
+ * @param D the matrix of distances (M x K)
+ * @param M the number of rows of Q
+ * @param N the number of rows of C
+ * @param L the number of columns of Q and C
+ * @param K the number of nearest neighbors
+ * @param sorted if set to a non-negative value outputs the distances in ascending order
+ * @param nthreads the number of threads to use. If set to -1 it automatically uses the appropriate number of threads
+ * @param approx if set to 1 finds the approximate k-nearest neighbors otherwise finds the exact.
+ * @return 0 on succesfull exit and 1 if an error occured
+ */
+int knnsearch(const double* Q, const double* C, int* IDX, double* D, const int M, const int N, const int L, int K, const int sorted, int nthreads, int approx);
+
+
+/**
+ * Function for executing the task for the exact solution of KNN.
+ * 
+ * @param task the task to execute
+ */
+void executeKNNExactTask(const KNNExactTask *task);
 
 #endif

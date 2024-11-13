@@ -8,6 +8,7 @@
         "openblas_config.h": "c",
         "math.h": "c",
         "stdlib.h": "c",
-        "cblas.h": "c"
+        "cblas.h": "c",
+        "matio.h": "c"
     }
 }
