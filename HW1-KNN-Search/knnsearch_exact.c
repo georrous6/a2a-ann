@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
     printf("Dimension: %d\n", CN);
 
     clock_t start = clock();
-    if (knnsearch(Q, C, IDX, D, QM, CM, QN, K, opts.sorted, 1, opts.approx))
+    if (knnsearch(Q, C, IDX, D, QM, CM, QN, K, opts.sorted, -1, opts.approx))
     {
         free(C);
         free(Q);

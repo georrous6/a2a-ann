@@ -82,7 +82,7 @@ void qsort_(double *arr, int *idx, int l, int r)
 }
 
 
-int get_num_cores()
+int get_num_threads(int MBLOCK_MAX_SIZE, int N)
 {
     const long num_cores = sysconf(_SC_NPROCESSORS_ONLN);  // Number of online processors
     if (num_cores < 1) 
@@ -91,7 +91,9 @@ int get_num_cores()
         return 1;
     }
 
-    return (int)num_cores;
+    int queries_per_block = MBLOCK_MAX_SIZE / (int)num_cores;
+
+    return queries_per_block >= MIN_THREAD_QUERIES_SIZE && N >= MIN_THREAD_CORPUS_SIZE ? (int)num_cores : 1;
 }
 
 
@@ -202,6 +204,10 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
         fprintf(stderr, "knnsearch_exact: Error allocating memory\n");
         return status;
     }
+
+    // if the number of threads is -1 find automatically the appropriate number of threads, 
+    // otherwise use the number of threads the user passed explicitly
+    nthreads = nthreads == -1 ? get_num_threads(MBLOCK_MAX_SIZE, N) : nthreads;
 
     printf("MBLOCK_MAX_SIZE: %d\n", MBLOCK_MAX_SIZE);
     printf("Threads No: %d\n", nthreads);
@@ -419,9 +425,6 @@ void *startKNNExactThread(void *pool)
 
 int knnsearch(const double* Q, const double* C, int* IDX, double* D, const int M, const int N, const int L, int K, const int sorted, int nthreads, int approx)
 {
-    // if the number of threads is -1 find automatically the appropriate number of threads, 
-    // otherwise use the number of threads the user passed explicitly
-    nthreads = nthreads == -1 ? get_num_cores() : nthreads;
     if (!approx)  // find the exact solution
     {
         knnsearch_exact(Q, C, IDX, D, M, N, L, K, sorted, nthreads);

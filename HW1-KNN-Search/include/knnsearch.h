@@ -7,7 +7,8 @@
 
 #define ALLOC_MAX_ITERS 10           // Maximum number of tries for memory allocation in the exact solution
 #define MAX_MEMORY_USAGE_RATIO 0.8   // Use up to 80% of available memory
-#define MIN_THREAD_CORPUS_SIZE 50
+#define MIN_THREAD_CORPUS_SIZE 50    // Minimum number of corpus points per thread task
+#define MIN_THREAD_QUERIES_SIZE 2   // Minimum number of queries per thread task
 
 extern pthread_mutex_t mutexQueue;        // Mutex for the tasks Queue
 extern pthread_cond_t condQueue;          // Condition variable for Queue
@@ -159,9 +160,14 @@ unsigned long get_available_memory_bytes();
 
 
 /**
- * Returns the system's available cores.
+ * Computes the optimal number of threads according to the maximum
+ * number of queries per block.
+ * 
+ * @param MBLOCK_MAX_SIZE the maximum number of queries per block
+ * @param N the number of corpus points
+ * @return the number of threads to use
  */
-int get_num_cores();
+int get_num_threads(int MBLOCK_MAX_SIZE, int N);
 
 
 /**
