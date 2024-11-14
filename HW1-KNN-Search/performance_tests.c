@@ -2,7 +2,8 @@
 #include <stdlib.h>
 #include <time.h>
 #include "ioutil.h"
-#include "knnsearch.h"
+#include "knnsearch_exact.h"
+#include "knnsearch_approx.h"
 
 
 int test_case(const char *filename, double *execution_time)
@@ -30,7 +31,7 @@ int test_case(const char *filename, double *execution_time)
     IDX = (int *)malloc(M * (*K) * sizeof(int)); if (!IDX) goto cleanup;
 
     clock_t start = clock();
-    if (knnsearch_exact(Q, C, IDX, D, M, N, L, *K, 0)) goto cleanup;
+    if (knnsearch_exact(Q, C, IDX, D, M, N, L, *K, 0, -1)) goto cleanup;
     clock_t end = clock();
     *execution_time = ((double) (end - start)) / CLOCKS_PER_SEC;
 

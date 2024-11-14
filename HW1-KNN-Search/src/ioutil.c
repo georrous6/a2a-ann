@@ -120,11 +120,48 @@ int store_matrix(const void* mat, const char* matname, int rows, int cols, const
     
     if (type == DOUBLE_TYPE)
     {
-        matvar = Mat_VarCreate(matname, MAT_C_DOUBLE, MAT_T_DOUBLE, 2, dims, mat, 0);
+        double *tmp = (double *)malloc(sizeof(double) * rows * cols);
+        if (!tmp)
+        {
+            fprintf(stderr, "Error allocating memory for temporary matrix\n");
+            Mat_Close(matfp);
+            return EXIT_FAILURE;
+        }
+
+        // Copy the contents of mat in column major order
+        int k = 0;
+        for (int j = 0; j < cols; j++) 
+        {
+            for (int i = 0; i < rows; i++) 
+            {
+                tmp[k++] = ((double *)mat)[i * cols + j];
+            }
+        }
+
+        matvar = Mat_VarCreate(matname, MAT_C_DOUBLE, MAT_T_DOUBLE, 2, dims, (void *)tmp, 0);
+        free(tmp);
     }
     else if (type == INT_TYPE)
     {
-        matvar = Mat_VarCreate(matname, MAT_C_INT32, MAT_T_INT32, 2, dims, mat, 0);
+        int *tmp = (int *)malloc(sizeof(int) * rows * cols);
+        if (!tmp)
+        {
+            fprintf(stderr, "Error allocating memory for temporary matrix\n");
+            Mat_Close(matfp);
+            return EXIT_FAILURE;
+        }
+
+        // Copy the contents of mat in column major order
+        int k = 0;
+        for (int j = 0; j < cols; j++) 
+        {
+            for (int i = 0; i < rows; i++) 
+            {
+                tmp[k++] = ((int *)mat)[i * cols + j];
+            }
+        }
+        matvar = Mat_VarCreate(matname, MAT_C_INT32, MAT_T_INT32, 2, dims, (void *)tmp, 0);
+        free(tmp);
     }
     else
     {
@@ -222,10 +259,10 @@ int parse_arguments(int argc, char *argv[], Options *opts, const char **filename
     int opt;
     
     // Initialize options
-    opts->sorted = 0;  // Default: not sorted
-    opts->approx = 0;  // Find the exact solution
-    opts->output_filename = NULL; // Default: no output filename
-    opts->num_threads = -1; // Allows the program to automatically specify the number of threads
+    opts->sorted = 0;              // Default: not sorted
+    opts->approx = 0;              // Default: find the exact solution
+    opts->output_filename = NULL;  // Default: no output filename
+    opts->num_threads = -1;        // Default: automatically determine the number of threads
 
     // Parse optional arguments
     const char *optstring = "sao:j:";
@@ -245,7 +282,7 @@ int parse_arguments(int argc, char *argv[], Options *opts, const char **filename
                 opts->sorted = 1; // Set the sorted flag
                 break;
             case 'a':
-                opts->approx = 0;  // Set the approximate solution flag
+                opts->approx = 1;  // Set the approximate solution flag
                 break;
             case 'o':
                 opts->output_filename = strdup(optarg); // Allocate memory for output filename

@@ -2,7 +2,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include "ioutil.h"
-#include "knnsearch.h"
+#include "knnsearch_exact.h"
+#include "knnsearch_approx.h"
 
 
 int test_case(const char *filename, double tolerance)
@@ -35,7 +36,7 @@ int test_case(const char *filename, double tolerance)
     // memory allocation for the estimated index matrix
     IDX = (int *)malloc(M * (*K) * sizeof(int)); if (!IDX) goto cleanup;
 
-    if (knnsearch(Q, C, IDX, D, M, N, L, *K, 0, -1, 0)) goto cleanup;
+    if (knnsearch_exact(Q, C, IDX, D, M, N, L, *K, 0, -1)) goto cleanup;
 
     // sort each row vector of the distances matrix
     // to check the correctness of the output

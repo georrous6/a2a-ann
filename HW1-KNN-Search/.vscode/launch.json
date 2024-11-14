@@ -6,7 +6,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${fileDirname}/build/${fileBasenameNoExtension}",
-            "args": ["${fileDirname}/test/validity_tests/test51.mat", "C", "Q", "10"],
+            "args": ["${fileDirname}/test/approx_tests/test01.mat", "C", "Q", "3"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

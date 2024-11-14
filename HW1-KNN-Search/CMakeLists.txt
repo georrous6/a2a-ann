@@ -24,9 +24,11 @@ include_directories(${MATIO_INCLUDE_DIRS} ${HDF5_INCLUDE_DIRS} ${CMAKE_CURRENT_S
 file(GLOB SOURCES src/*.c)
 
 # Add the executables
-add_executable(knnsearch_exact knnsearch_exact.c ${SOURCES})
+add_executable(knnsearch main.c ${SOURCES})
 add_executable(validity_tests validity_tests.c ${SOURCES})
+add_executable(performance_tests performance_tests.c ${SOURCES})
 
 # Link libraries
-target_link_libraries(knnsearch_exact ${OpenBLAS_LIBRARIES} ${MATIO_LIBRARIES} ${HDF5_LIBRARIES} m)
+target_link_libraries(knnsearch ${OpenBLAS_LIBRARIES} ${MATIO_LIBRARIES} ${HDF5_LIBRARIES} m)
 target_link_libraries(validity_tests ${OpenBLAS_LIBRARIES} ${MATIO_LIBRARIES} ${HDF5_LIBRARIES} m)
+target_link_libraries(performance_tests ${OpenBLAS_LIBRARIES} ${MATIO_LIBRARIES} ${HDF5_LIBRARIES} m)

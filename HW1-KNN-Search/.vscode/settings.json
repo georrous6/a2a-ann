@@ -9,6 +9,8 @@
         "math.h": "c",
         "stdlib.h": "c",
         "cblas.h": "c",
-        "matio.h": "c"
+        "matio.h": "c",
+        "knnsearch_exact.h": "c",
+        "knnsearch_approx.h": "c"
     }
 }

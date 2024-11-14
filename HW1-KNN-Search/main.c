@@ -52,15 +52,6 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    if (K > CM)
-    {
-        fprintf(stderr, "Invalid K value; must be smaller or equal to the corpus size i.e. K <= %d\n", CM);
-        free(C);
-        free(Q);
-        free(opts.output_filename);
-        return EXIT_FAILURE;
-    }
-
     double *D = (double *)malloc(QM * K * sizeof(double));
     if (!D)
     {
@@ -87,7 +78,7 @@ int main(int argc, char *argv[])
     printf("Dimension: %d\n", CN);
 
     clock_t start = clock();
-    if (knnsearch(Q, C, IDX, D, QM, CM, QN, K, opts.sorted, -1, opts.approx))
+    if (knnsearch(Q, C, IDX, D, QM, CM, QN, K, opts.sorted, -1, 1))
     {
         free(C);
         free(Q);
