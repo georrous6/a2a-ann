@@ -181,7 +181,7 @@ void executeKNNExactTask(const KNNExactTask *task)
 }
 
 
-int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const int M, const int N, const int L, int K, const int sorted, int nthreads)
+int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const int M, const int N, const int L, const int K, const int sorted, int nthreads)
 {
     isActive = 1;
     runningTasks = 0;
@@ -194,8 +194,6 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
         fprintf(stderr, "Invalid value for K: %d\n", K);
         return status;
     }
-
-    K = K > N ? N : K;  // The k-nearest points are greater than the corpus size
 
     // Allocate the appropriate amount of memory for the matrices and compute the
     // maximum coprus size that fits in memory

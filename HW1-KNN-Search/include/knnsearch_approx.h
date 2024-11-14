@@ -1,21 +1,22 @@
 #ifndef KNNSEARCH_APPROX_H
 #define KNNSEARCH_APPROX_H
 
-#define MAX_LEAF_SIZE 1000  // maximum number of points on a leaf
+#define MAX_LEAF_SIZE 1  // maximum number of points on a leaf
 
 
 typedef struct Node {
-    double *ptr;         // pointer to the points of the node
-    int num_points;      // number of points of the node
-    struct Node *left;   // left node
-    struct Node *right;  // right node
-    double *direction;   // the direction vector perpendicular to the hyperplane spliting the points into two subsets
-    double threshold;    // threshold for partitioning points into two subsets
+    double *points_ptr;         // pointer to the points of the node
+    int num_points;             // number of points of the node
+    struct Node *left;          // left node
+    struct Node *right;         // right node
+    double *direction;          // the direction vector perpendicular to the hyperplane spliting the points into two subsets
+    double threshold;           // threshold for partitioning points into two subsets
 } Node;
 
 
 typedef struct AnnoyTree {
     double *points;      // the points of the tree
+    int *idx;            // the initial indexes of the points, zero based indexing
     int dimension;       // the dimension of the points
     Node *root;          // the root node of the tree
 } AnnoyTree;
@@ -37,19 +38,20 @@ double* perpendicular_bisector(double *p1, double *p2, int dimension, double *th
 /**
  * Swap two points at specific indexes.
  * 
+ * @param tree the tree
  * @param points a 1D array of multidimensional points
  * @param dimension the dimension of the points
  * @param idx1 the index of the first point
  * @param idx2 the index of the second point
+ * @note idx1 and idx2 indexes have base the points pointer and not the tree->points
  */
-void swap_points(double* points, int dimension, int idx1, int idx2);
+void swap_points(AnnoyTree* tree, double* points, int dimension, int idx1, int idx2);
 
 /**
  * Driver function for the construction of the tree.
  * Calls the recursive function build_tree and sets the dimension of the data.
  * 
  * @param points the points to store in the tree
- * @param idx the indexes of the points
  * @param num_points the number of points to be partitioned
  * @param dimension the dimension of the points
  * @param LEAF_SIZE the maximum number of points to a leaf node
@@ -60,13 +62,14 @@ AnnoyTree *AnnoyTree_create(const double *points, int num_points, int dimension,
 /**
  * Recursive function for the construction of the tree.
  * 
+ * @param tree the tree
  * @param points the points of the current node
  * @param num_points the number of points to be partitioned
  * @param dimension the dimension of the points
  * @param LEAF_SIZE the maximum number of points to a leaf node
  * @return a leaf or an intermediate node or NULL if an error occured
  */
-Node* build_tree(double *points, int num_points, int dimension, const int LEAF_SIZE);
+Node* build_tree(AnnoyTree *tree, double *points, int num_points, int dimension, const int LEAF_SIZE);
 
 
 /**
@@ -89,17 +92,17 @@ void destroy_tree(Node* node);
 
 /**
  * Recursive function that finds the approximate nearest neighbors of the query point.
- * This function sets the distances and the indexes of the approximate K-nearest neighbors.
+ * It returns the indexes of the approximate K-nearest neighbors.
  * 
+ * @param tree the tree 
  * @param node the root node of the tree
  * @param point the query point
- * @param D the matrix of distances (M x K)
- * @param IDX the matrix of indices (M x K)
+ * @param idx_neighbors the indexes of the approximate nearest neighbors
  * @param dimension the dimansion of the query point
  * @param n_neighbors the number of the approximate nearest neighbors already found
  * @param K the number of the approximate neighbors to find
  */
-void getApproxNeighbors(const Node *node, const double *point, double *neighbors, const int dimension, int *n_neighbors, const int K);
+void getApproxNeighbors(const AnnoyTree* tree, const Node *node, const double *point, int *idx_neighbors, const int dimension, int *n_neighbors, const int K);
 
 
 /**
