@@ -249,7 +249,7 @@ int knnsearch_approx(const double* Q, const double* C, int* IDX, double* D, cons
     // Apply 1-based indexing
     for (int i = 0; i < n_neighbors; i++) idx_neighbors[i] += 1;
 
-    if (store_matrix((void *)idx_neighbors, "IDX_approx", 1, n_neighbors, "/home/grous/THMMY-AUTH/Semester07/PDS/PDS-HW-2024-25/HW1-KNN-Search/test/approx_tests/my_output.mat", INT_TYPE))
+    if (store_matrix((void *)idx_neighbors, "IDX_approx", 1, n_neighbors, "/home/grous/THMMY-AUTH/Semester07/PDS/PDS-HW-2024-25/HW1-KNN-Search/test/approx_tests/my_output.mat", INT_TYPE, 'w'))
     {
         printf("Could not save data to mat file\n");
     }

@@ -51,9 +51,10 @@ int str2int(int* value, const char *str);
  * @param cols Number of columns in the matrix.
  * @param filename The name of the .mat file to save the matrix.
  * @param type The data type of the matrix (DOUBLE_TYPE or INT_TYPE).
+ * @param mode the mode to open the file. 'a' appends the data to file and 'w' overwrites it.
  * @return EXIT_SUCCESS if successful, otherwise EXIT_FAILURE.
  */
-int store_matrix(const void* mat, const char* matname, int rows, int cols, const char *filename, MATRIX_TYPE type);
+int store_matrix(const void* mat, const char* matname, int rows, int cols, const char *filename, MATRIX_TYPE type, const char mode);
 
 
 /**

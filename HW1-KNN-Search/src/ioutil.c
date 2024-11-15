@@ -100,7 +100,7 @@ void* load_matrix(const char *filename, const char* matname, int* rows, int* col
 }
 
 
-int store_matrix(const void* mat, const char* matname, int rows, int cols, const char *filename, MATRIX_TYPE type)
+int store_matrix(const void* mat, const char* matname, int rows, int cols, const char *filename, MATRIX_TYPE type, const char mode)
 {
     if (!mat) 
     {
@@ -108,12 +108,36 @@ int store_matrix(const void* mat, const char* matname, int rows, int cols, const
         return EXIT_FAILURE;
     }
 
-    mat_t* matfp = Mat_CreateVer(filename, NULL, MAT_FT_MAT5);
-    if (!matfp) 
+    mat_t* matfp = NULL;
+
+    // Check mode and open the MAT file accordingly
+    if (mode == 'w')
     {
-        fprintf(stderr, "Error creating MAT file \'%s\'. %s\n", filename, strerror(errno));
+        // Overwrite mode: create a new file
+        matfp = Mat_CreateVer(filename, NULL, MAT_FT_MAT5);
+    }
+    else if (mode == 'a')
+    {
+        // Append mode: open an existing file or create it if it doesn't exist
+        matfp = Mat_Open(filename, MAT_ACC_RDWR);
+        if (!matfp)
+        {
+            // If file does not exist, create it
+            matfp = Mat_CreateVer(filename, NULL, MAT_FT_MAT5);
+        }
+    }
+    else
+    {
+        fprintf(stderr, "Error: Unsupported file mode. Use 'w' for write or 'a' for append.\n");
         return EXIT_FAILURE;
     }
+
+    if (!matfp) 
+    {
+        fprintf(stderr, "Error opening/creating MAT file '%s'. %s\n", filename, strerror(errno));
+        return EXIT_FAILURE;
+    }
+
 
     size_t dims[2] = {rows, cols};
     matvar_t *matvar = NULL;

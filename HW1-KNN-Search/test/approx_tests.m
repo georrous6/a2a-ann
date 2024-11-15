@@ -23,7 +23,7 @@ save('approx_tests/test01.mat', 'C', 'Q', 'K', 'D', 'IDX');
 
 %% Create test for 3D points
 
-C = rand(10000, 3);
+C = rand(100000, 3);
 Q = rand(1, 3);
 K = int32(3);
 
