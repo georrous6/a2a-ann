@@ -32,16 +32,6 @@ void* load_matrix(const char *filename, const char* matname, int* rows, int* col
 
 
 /**
- * Converts a string to int.
- * 
- * @param value the evaluation of the string
- * @param str the string to be evaluated
- * @return EXIT_SUCCESS if the evaluation was successfull and EXIT_FAILURE otherwise
- */
-int str2int(int* value, const char *str);
-
-
-/**
  * Function to save a 2D matrix to a .mat file. Supports double and int data types.
  * If the file already exists it overwrites it and if it doesn't it creates it.
  *
@@ -81,13 +71,10 @@ void print_matrix(const void* mat, const char* name, int rows, int cols, MATRIX_
  *                               If no output filename is provided, it will be set to NULL.
  *             - num_threads: An integer representing the number of threads to be used, defaulting to 1.
  * @param filename A pointer to a string that will hold the filename for the input data after parsing.
- * @param CNAME A pointer to a string that will hold the corpus matrix name after parsing.
- * @param QNAME A pointer to a string that will hold the queries matrix name after parsing.
- * @param K A pointer to a int variable that will hold the value of K (the number of nearest neighbors).
  * 
  * @return EXIT_SUCCESS (0) on successful parsing of the arguments.
  *         EXIT_FAILURE (1) if there is an error in parsing, including:
- *         - Invalid number of positional arguments.
+ *         - Missing input file.
  *         - Invalid thread count.
  *         - Any other parsing error (indicated by the '?' case in getopt_long).
  *
@@ -98,15 +85,9 @@ void print_matrix(const void* mat, const char* name, int rows, int cols, MATRIX_
  * - --threads <N> or -j <N>: Specifies the number of threads to be used. The value must be 
  *                            greater than or equal to 1. Default is 1.
  *
- * The function checks that exactly four positional arguments are provided after the optional arguments:
- * 1. <filename>: The input data file.
- * 2. <CNAME>: The name of the corpus matrix.
- * 3. <QNAME>: The name of the queries matrix.
- * 4. <K>: The number of nearest neighbors.
- *
- * The function converts the value of <K> from a string to int using strtoull.
+ * The function checks if input file <filename>.mat is provided allong with the optional parameters.
  */
-int parse_arguments(int argc, char *argv[], Options *opts, const char **filename, const char **CNAME, const char **QNAME, int *K);
+int parse_arguments(int argc, char *argv[], Options *opts, const char **filename);
 
 
 /**

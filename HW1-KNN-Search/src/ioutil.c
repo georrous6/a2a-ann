@@ -114,27 +114,37 @@ int store_matrix(const void* mat, const char* matname, int rows, int cols, const
     if (mode == 'w')
     {
         // Overwrite mode: create a new file
+        errno = 0;
         matfp = Mat_CreateVer(filename, NULL, MAT_FT_MAT5);
+        if (!matfp) 
+        {
+            fprintf(stderr, "Error creating MAT file '%s'. %s\n", filename, strerror(errno));
+            return EXIT_FAILURE;
+        }
     }
     else if (mode == 'a')
     {
         // Append mode: open an existing file or create it if it doesn't exist
+        errno = 0;  // clear errors
         matfp = Mat_Open(filename, MAT_ACC_RDWR);
-        if (!matfp)
+        if (!matfp && errno == ENOENT)  // If file does not exist, create it
         {
-            // If file does not exist, create it
             matfp = Mat_CreateVer(filename, NULL, MAT_FT_MAT5);
+            if (!matfp) 
+            {
+                fprintf(stderr, "Error creating MAT file '%s'. %s\n", filename, strerror(errno));
+                return EXIT_FAILURE;
+            }
+        }
+        else if(!matfp) // file already exists but cannot open it
+        {
+            fprintf(stderr, "Error opening MAT file '%s'. %s\n", filename, strerror(errno));
+            return EXIT_FAILURE;
         }
     }
     else
     {
         fprintf(stderr, "Error: Unsupported file mode. Use 'w' for write or 'a' for append.\n");
-        return EXIT_FAILURE;
-    }
-
-    if (!matfp) 
-    {
-        fprintf(stderr, "Error opening/creating MAT file '%s'. %s\n", filename, strerror(errno));
         return EXIT_FAILURE;
     }
 
@@ -236,40 +246,9 @@ void print_matrix(const void* mat, const char* name, int rows, int cols, MATRIX_
 }
 
 
-/**
- * Converts a string to int.
- * 
- * @param value the evaluation of the string
- * @param str the string to be evaluated
- * @return EXIT_SUCCESS if the evaluation was successfull and EXIT_FAILURE otherwise
- */
-int str2int(int* value, const char *str) 
-{
-    char *endptr;
-    errno = 0;  // Clear errno before calling strtoul
-
-    long num = strtol(str, &endptr, 10);
-
-    // Error handling
-    if (errno == ERANGE || num > INT_MAX || num < INT_MIN) 
-    {
-        printf("Overflow occurred, the value of K is too large.\n");
-        return EXIT_FAILURE;
-    }
-    if (endptr == str || *endptr != '\0') 
-    {
-        printf("Invalid input for K parameter.\n");
-        return EXIT_FAILURE;  // Indicate conversion failure
-    }
-
-    *value = (int)num;
-    return EXIT_SUCCESS;
-}
-
-
 void print_usage(const char *program_name) 
 {
-    fprintf(stderr, "Usage: %s <filename> <CNAME> <QNAME> <K> [-s] [-o output_file] [-jN]\n", program_name);
+    fprintf(stderr, "Usage: %s <filename>.mat [-a] [-s] [-o <output_file>.mat] [-jN]\n", program_name);
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -s, --sorted          Use sorted data\n");
     fprintf(stderr, "  -a, --approx          For approximate solution\n");
@@ -278,7 +257,7 @@ void print_usage(const char *program_name)
 }
 
 
-int parse_arguments(int argc, char *argv[], Options *opts, const char **filename, const char **CNAME, const char **QNAME, int *K) 
+int parse_arguments(int argc, char *argv[], Options *opts, const char **filename) 
 {
     int opt;
     
@@ -331,21 +310,14 @@ int parse_arguments(int argc, char *argv[], Options *opts, const char **filename
     }
 
     // Check for the correct number of positional arguments
-    if (argc - optind != 4) {
-        fprintf(stderr, "Expected 4 positional arguments: <filename> <CNAME> <QNAME> <K>\n");
+    if (argc - optind != 1) {
+        fprintf(stderr, "Expected input file <filename>.mat\n");
         print_usage(argv[0]);
         return EXIT_FAILURE; // Return error
     }
 
     // Positional arguments
     *filename = argv[optind];
-    *CNAME = argv[optind + 1];
-    *QNAME = argv[optind + 2];
-    if (str2int(K, argv[optind + 3]) || *K <= 0) // Convert K to int
-    {
-        fprintf(stderr, "Invalid value for K parameter\n");
-        return EXIT_FAILURE;
-    }
 
     return EXIT_SUCCESS; // Successful parsing
 }

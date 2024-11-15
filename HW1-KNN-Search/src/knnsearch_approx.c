@@ -234,6 +234,7 @@ int knnsearch_approx(const double* Q, const double* C, int* IDX, double* D, cons
     }
 
     // Create the search tree from the corpus
+    clock_t start = clock();
     AnnoyTree* tree = AnnoyTree_create(C, N, L, MAX_LEAF_SIZE);
     if (!tree)
     {
@@ -241,8 +242,12 @@ int knnsearch_approx(const double* Q, const double* C, int* IDX, double* D, cons
         goto cleanup;
     }
 
+    clock_t end = clock();
+    printf("Tree created after: %lf sec\n", ((double)(end - start)) / CLOCKS_PER_SEC);
     // find the approximate K-nearest neighbors of each query
     int n_neighbors;
+
+    start = clock();
     for (int i = 0; i < M; i++)
     {
         n_neighbors = 0;
@@ -252,11 +257,8 @@ int knnsearch_approx(const double* Q, const double* C, int* IDX, double* D, cons
             goto cleanup;
         }
     }
-
-    if (store_matrix((void *)IDX, "IDX_approx", M, K, "/home/grous/THMMY-AUTH/Semester07/PDS/PDS-HW-2024-25/HW1-KNN-Search/test/approx_tests/my_output.mat", INT_TYPE, 'w'))
-    {
-        printf("Could not save data to mat file\n");
-    }
+    end = clock();
+    printf("knn found after: %lf sec\n", ((double)(end - start)) / CLOCKS_PER_SEC);
 
     status = EXIT_SUCCESS;
 
