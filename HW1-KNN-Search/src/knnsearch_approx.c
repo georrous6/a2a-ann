@@ -183,7 +183,7 @@ void destroy_tree(Node* node)
 }
 
 
-void getApproxNeighbors(const AnnoyTree* tree, const Node *node, const double *point, int *idx_neighbors, const int dimension, int *n_neighbors, const int K)
+void getApproxNeighbors(const AnnoyTree* tree, const Node *node, const double *point, double *neighbors, int *idx_neighbors, const int dimension, int *n_neighbors, const int K)
 {
     if (!node || *n_neighbors >= K) 
     {
@@ -192,8 +192,9 @@ void getApproxNeighbors(const AnnoyTree* tree, const Node *node, const double *p
 
     if (!node->direction)  // leaf node
     {
-        int offset = (int)(node->points_ptr - tree->points) / dimension;
-        memcpy(idx_neighbors + *n_neighbors, tree->idx + offset, sizeof(int) * node->num_points);
+        const int idx_offset = (int)(node->points_ptr - tree->points) / dimension;
+        memcpy(idx_neighbors + *n_neighbors, tree->idx + idx_offset, sizeof(int) * node->num_points);
+        memcpy(neighbors + *n_neighbors * dimension, node->points_ptr, sizeof(double) * dimension * node->num_points);
         *n_neighbors += node->num_points;
         return;
     }
@@ -202,18 +203,18 @@ void getApproxNeighbors(const AnnoyTree* tree, const Node *node, const double *p
     double projection = cblas_ddot(dimension, node->direction, 1, point, 1);
     if (projection < node->threshold)  // search in the left subtree
     {
-        getApproxNeighbors(tree, node->left, point, idx_neighbors, dimension, n_neighbors, K);
+        getApproxNeighbors(tree, node->left, point, neighbors, idx_neighbors, dimension, n_neighbors, K);
         if (*n_neighbors < K)  // did not found K nearest neighbors, search in the other subtree
         {
-            getApproxNeighbors(tree, node->right, point, idx_neighbors, dimension, n_neighbors, K);    
+            getApproxNeighbors(tree, node->right, point, neighbors, idx_neighbors, dimension, n_neighbors, K);    
         }
     }
     else  // search in the right subtree
     {
-        getApproxNeighbors(tree, node->right, point, idx_neighbors, dimension, n_neighbors, K);
+        getApproxNeighbors(tree, node->right, point, neighbors, idx_neighbors, dimension, n_neighbors, K);
         if (*n_neighbors < K)  // did not found K nearest neighbors, search in the other subtree
         {
-            getApproxNeighbors(tree, node->left, point, idx_neighbors, dimension, n_neighbors, K);
+            getApproxNeighbors(tree, node->left, point, neighbors, idx_neighbors, dimension, n_neighbors, K);
         }
     }
 }
@@ -223,19 +224,21 @@ int knnsearch_approx(const double* Q, const double* C, int* IDX, double* D, cons
 {
     // Create an auxiliary array for storing the approximate nearest neighbors
     int *idx_neighbors = (int *)malloc(sizeof(int) * N);
-    if (!idx_neighbors)
+    double *neighbors = (double *)malloc(sizeof(double) * N * L);
+    int status = EXIT_FAILURE;
+
+    if (!idx_neighbors || !neighbors)
     {
-        fprintf(stderr, "Error allocating memory for the approximate neighbors indexes\n");
-        return EXIT_FAILURE;
+        fprintf(stderr, "knnsearch_approx: Error allocating memory\n");
+        goto cleanup;
     }
 
     // Create the search tree from the corpus
     AnnoyTree* tree = AnnoyTree_create(C, N, L, MAX_LEAF_SIZE);
     if (!tree)
     {
-        free(idx_neighbors);
         fprintf(stderr, "Error allocating memory for ANNOY tree\n");
-        return EXIT_FAILURE;
+        goto cleanup;
     }
 
     // find the approximate K-nearest neighbors of each query
@@ -243,18 +246,98 @@ int knnsearch_approx(const double* Q, const double* C, int* IDX, double* D, cons
     for (int i = 0; i < M; i++)
     {
         n_neighbors = 0;
-        getApproxNeighbors(tree, tree->root, Q + i * L, idx_neighbors, L, &n_neighbors, K);
+        getApproxNeighbors(tree, tree->root, Q + i * L, neighbors, idx_neighbors, L, &n_neighbors, K);
+        if (knn(Q + i * L, neighbors, IDX + i * K, idx_neighbors, D + i * K, 1, n_neighbors, L, K, sorted))
+        {
+            goto cleanup;
+        }
     }
 
-    // Apply 1-based indexing
-    for (int i = 0; i < n_neighbors; i++) idx_neighbors[i] += 1;
-
-    if (store_matrix((void *)idx_neighbors, "IDX_approx", 1, n_neighbors, "/home/grous/THMMY-AUTH/Semester07/PDS/PDS-HW-2024-25/HW1-KNN-Search/test/approx_tests/my_output.mat", INT_TYPE, 'w'))
+    if (store_matrix((void *)IDX, "IDX_approx", M, K, "/home/grous/THMMY-AUTH/Semester07/PDS/PDS-HW-2024-25/HW1-KNN-Search/test/approx_tests/my_output.mat", INT_TYPE, 'w'))
     {
         printf("Could not save data to mat file\n");
     }
 
-    free(idx_neighbors);
+    status = EXIT_SUCCESS;
+
+cleanup:
+    if (idx_neighbors) free(idx_neighbors);
+    if (neighbors) free(neighbors);
     AnnoyTree_destroy(tree);
-    return EXIT_SUCCESS;
+    return status;
+}
+
+int knn(const double* Q, const double* C, int* IDX, int *IDXall, double* D, const int M, const int N, const int L, const int K, const int sorted)
+{
+    double *Dall = NULL, *sqrmag_Q = NULL, *sqrmag_C = NULL;
+    int status = EXIT_FAILURE;
+
+    Dall = (double *)malloc(M * N * sizeof(double));
+    sqrmag_Q = (double *)malloc(M * sizeof(double));
+    sqrmag_C = (double *)malloc(N * sizeof(double));
+
+    if (!Dall || !sqrmag_C || !sqrmag_Q)
+    {
+        fprintf(stderr, "Error allocating memory in knn\n");
+        goto cleanup;
+    }
+
+    // compute D = -2*Q*C'
+    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, L, -2.0, Q, L, C, L, 0.0, Dall, N);
+
+    // compute the square of magnitudes of the row vectors of matrix Q
+    for (int i = 0; i < M; i++)
+    {
+        sqrmag_Q[i] = cblas_ddot(L, Q + i * L, 1, Q + i * L, 1);
+    }
+
+    // compute the square of magnitudes of the row vectors of matrix C
+    for (int i = 0; i < N; i++)
+    {
+        sqrmag_C[i] = cblas_ddot(L, C + i * L, 1, C + i * L, 1);
+    }
+
+    // compute the distance matrix D by applying the formula D = sqrt(C.^2 -2*Q*C' + (Q.^2)')
+    for (int i = 0; i < M; i++)
+    {
+        for (int j = 0; j < N; j++)
+        {
+            Dall[i * N + j] = sqrt(Dall[i * N + j] + sqrmag_Q[i] + sqrmag_C[j]);
+        }
+    }
+    
+    if (!sorted)
+    {
+        // apply Quick Select algorithm for each row of distance matrix
+        for (int i = 0; i < M; i++)
+        {
+            qselect(Dall + i * N, IDXall + i * N, 0, N - 1, K);
+        }
+    }
+    else
+    {
+        // apply Quick Sort algorithm for each row of distance matrix
+        for (int i = 0; i < M; i++)
+        {
+            qsort_(Dall + i * N, IDXall + i * N, 0, N - 1);
+        }      
+    }
+
+    for (int i = 0; i < M; i++)
+    {
+        for (int j = 0; j < K; j++)
+        {
+            D[i * K + j] = Dall[i * N + j];
+            IDX[i * K + j] = IDXall[i * N + j] + 1; // 1-based indexing
+        }
+    }
+
+    status = EXIT_SUCCESS;
+
+cleanup:
+    if (Dall) free(Dall);
+    if (sqrmag_Q) free(sqrmag_Q);
+    if (sqrmag_C) free(sqrmag_C);
+
+    return status;
 }

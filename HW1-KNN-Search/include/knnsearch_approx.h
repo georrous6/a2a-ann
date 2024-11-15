@@ -97,12 +97,13 @@ void destroy_tree(Node* node);
  * @param tree the tree 
  * @param node the root node of the tree
  * @param point the query point
+ * @param neighbors the approximate nearest neighbors
  * @param idx_neighbors the indexes of the approximate nearest neighbors
  * @param dimension the dimansion of the query point
  * @param n_neighbors the number of the approximate nearest neighbors already found
  * @param K the number of the approximate neighbors to find
  */
-void getApproxNeighbors(const AnnoyTree* tree, const Node *node, const double *point, int *idx_neighbors, const int dimension, int *n_neighbors, const int K);
+void getApproxNeighbors(const AnnoyTree* tree, const Node *node, const double *point, double *neighbors, int *idx_neighbors, const int dimension, int *n_neighbors, const int K);
 
 
 /**
@@ -126,5 +127,27 @@ void getApproxNeighbors(const AnnoyTree* tree, const Node *node, const double *p
  * dimensions
  */
 int knnsearch_approx(const double* Q, const double* C, int* IDX, double* D, const int M, const int N, const int L, const int K, const int sorted, int nthreads);
+
+
+/**
+ * Finds the exact k-nearest neighbors. Usefull for small problem size.
+ * 
+ * @param Q the query points (M x L)
+ * @param C the corpus points (N x L)
+ * @param IDX the matrix of indices (M x K)
+ * @param IDXall the matrix of indices of the original data (M x N)
+ * @param D the matrix of distances (M x K)
+ * @param M the number of rows of Q
+ * @param N the number of rows of C
+ * @param L the number of columns of Q and C
+ * @param K the number of nearest neighbors
+ * @param sorted if set to a non-negative value outputs 
+ * the distances in ascending order
+ * @return 0 on succesfull exit and 1 if an error occured
+ * @note The function assumes that Q and C have the same number of columns.
+ * @note The function assumes that the IDXall matrix is already initialized 
+ * with zero-based indexes.
+ */
+int knn(const double* Q, const double* C, int* IDX, int *IDXall, double* D, const int M, const int N, const int L, const int K, const int sorted);
 
 #endif
