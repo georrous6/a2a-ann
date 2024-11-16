@@ -177,7 +177,6 @@ void executeKNNExactTask(const KNNExactTask *task)
             qsort_(Dall + i * N, IDXall + i * N, 0, N - 1);
         }      
     }
-    printf("Thread finished execution\n");
 }
 
 
@@ -207,8 +206,6 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
     // otherwise use the number of threads the user passed explicitly
     nthreads = nthreads == -1 ? get_num_threads(MBLOCK_MAX_SIZE, N) : nthreads;
 
-    printf("MBLOCK_MAX_SIZE: %d\n", MBLOCK_MAX_SIZE);
-    printf("Threads No: %d\n", nthreads);
     pthread_t* threads = NULL;
     pthread_attr_t attr;
     Queue tasksQueue;
@@ -295,7 +292,6 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
                 KNNExactTask task = (KNNExactTask){Dall, IDXall, K, N, MBLOCK_SIZE, sorted};
                 Queue_enqueue(&tasksQueue, (void *)&task);  // add task to the queue
                 runningTasks++;
-                printf("Adding task to the queue...\n");
             }
             else  // split workload accross all the threads
             {
@@ -314,7 +310,6 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
                     KNNExactTask task = (KNNExactTask){Dall + D_THREAD_OFFSET, IDXall + D_THREAD_OFFSET, K, N, MBLOCK_THREAD_SIZE, sorted};
                     Queue_enqueue(&tasksQueue, (void *)&task);  // add task to the queue
                     runningTasks++;
-                    printf("Adding task to the queue...\n");
                 }
             }
 
@@ -324,11 +319,9 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
             pthread_mutex_lock(&mutexQueue);
             while (runningTasks > 0)
             {
-                printf("Main thread waiting for signal...\n");
                 pthread_cond_wait(&condTasksComplete, &mutexQueue);
             }
             pthread_mutex_unlock(&mutexQueue);
-            printf("Finished tasks of the block\n");
         }
 
         // now copy the first K elements of each row of matrices
@@ -346,7 +339,6 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
     if (nthreads > 1)
     {
         isActive = 0;  // Set termination flag for threads
-        printf("Signal threads to terminate\n");
         pthread_cond_broadcast(&condQueue);  // Wake up all threads to allow them to exit
 
         for (int t = 0; t < nthreads; t++)
@@ -402,7 +394,6 @@ void *startKNNExactThread(void *pool)
                 
         pthread_mutex_unlock(&mutexQueue);
         
-        printf("Thread executing task...\n");
         executeKNNExactTask(&task);
 
         pthread_mutex_lock(&mutexQueue);
@@ -410,13 +401,11 @@ void *startKNNExactThread(void *pool)
         if (runningTasks == 0)
         {
             // Signal main thread that all tasks for the current block are done
-            printf("Thread found empty queue\n");
             pthread_cond_signal(&condTasksComplete);
         }
         pthread_mutex_unlock(&mutexQueue);
     }
 
-    printf("Thread exiting...\n");
     return NULL;
 }
 

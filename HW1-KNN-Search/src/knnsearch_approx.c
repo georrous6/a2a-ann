@@ -243,7 +243,6 @@ int knnsearch_approx(const double* Q, const double* C, int* IDX, double* D, cons
     }
 
     clock_t end = clock();
-    printf("Tree created after: %lf sec\n", ((double)(end - start)) / CLOCKS_PER_SEC);
     // find the approximate K-nearest neighbors of each query
     int n_neighbors;
 
@@ -258,7 +257,6 @@ int knnsearch_approx(const double* Q, const double* C, int* IDX, double* D, cons
         }
     }
     end = clock();
-    printf("knn found after: %lf sec\n", ((double)(end - start)) / CLOCKS_PER_SEC);
 
     status = EXIT_SUCCESS;
 
