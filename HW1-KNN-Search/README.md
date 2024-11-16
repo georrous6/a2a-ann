@@ -8,3 +8,10 @@ cd build
 
 valgrind --leak-check=full --track-origins=yes --show-leak-kinds=all --log-file=memory_usage.log ./knnsearch ../test/validity_tests/test51.mat C Q 10
 
+## To run the tests
+
+cd test
+
+chmod +x knn_tests.sh
+
+./knn_tests path/to/executable

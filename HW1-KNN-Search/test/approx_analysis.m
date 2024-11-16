@@ -1,12 +1,11 @@
+%% Plot 2D points
 clc, clearvars, close all;
 
-%% Plot 2D points
-
 % Load execution times from .mat files
-my_data = load('approx_tests/my_output.mat', 'IDX_approx');
+my_data = load('approx_tests/my_output.mat', 'IDX');
 matlab_data = load('approx_tests/test01.mat', 'IDX', 'Q', 'C');
 
-IDX_approx = my_data.IDX_approx;
+IDX_approx = my_data.IDX;
 IDX = matlab_data.IDX;
 Q = matlab_data.Q;
 C = matlab_data.C;
@@ -32,6 +31,7 @@ title('Approximate Nearest Neighbors');
 
 
 %% Plot 3D points
+clc, clearvars;
 
 % Load execution times from .mat files
 my_data = load('approx_tests/my_output.mat', 'IDX_approx');

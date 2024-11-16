@@ -10,10 +10,11 @@ typedef enum { DOUBLE_TYPE, INT_TYPE } MATRIX_TYPE;
 
 
 typedef struct {
-    int sorted;            // Flag for sorted data
-    int approx;            // Flag for approximate solution
-    char *output_filename; // Output filename
-    int num_threads;       // Number of threads
+    int sorted;              // Flag for sorted data
+    int approx;              // Flag for approximate solution
+    int verbose;             // Display information
+    char *output_filename;   // Output filename
+    int num_threads;         // Number of threads
 } Options;
 
 
@@ -80,14 +81,22 @@ void print_matrix(const void* mat, const char* name, int rows, int cols, MATRIX_
  *
  * The function supports the following options:
  * - --sorted or -s: A flag indicating whether the input data is sorted. Default is 0 (not sorted).
+ * - --approx or -a: A flag indicating whether to find the approximate nearest neighbors or not.
+ * - --verbose or -v: A flag for diplaying information about the proccess.
  * - --output <filename> or -o <filename>: Specifies the output file name. If not specified, 
  *                                          the output will go to standard output.
  * - --threads <N> or -j <N>: Specifies the number of threads to be used. The value must be 
  *                            greater than or equal to 1. Default is 1.
  *
- * The function checks if input file <filename>.mat is provided allong with the optional parameters.
+ * The function checks that exactly six positional arguments are provided after the optional arguments:
+ * 1. <filename>: The input data file.
+ * 2. <C>: The name of the corpus matrix.
+ * 3. <Q>: The name of the queries matrix.
+ * 4. <K>: The name of the variable indicating the number of neighbors to find.
+ * 5. <IDX>: The name of the indexes matrix
+ * 6. <D>: The name of the distances matrix
  */
-int parse_arguments(int argc, char *argv[], Options *opts, const char **filename);
+int parse_arguments(int argc, char *argv[], Options *opts, const char **filename, const char **C_NAME, const char **Q_NAME, const char **K_NAME, const char** IDX_NAME, const char **D_NAME);
 
 
 /**

@@ -5,50 +5,8 @@
             "name": "Debug knnsearch (gdb)",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${fileDirname}/build/${fileBasenameNoExtension}",
-            "args": ["${fileDirname}/test/validity_tests/test51.mat", "--approx", "-o${fileDirname}/test/approx_tests/my_output.mat"],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "miDebuggerPath": "/usr/bin/gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ],
-            "preLaunchTask": "build with gcc"
-        },
-        {
-            "name": "Debug validity tests (gdb)",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${fileDirname}/build/${fileBasenameNoExtension}",
-            "args": ["${fileDirname}/test/validity_tests"],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "miDebuggerPath": "/usr/bin/gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ],
-            "preLaunchTask": "build with gcc"
-        },
-        {
-            "name": "Debug performance tests (gdb)",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${fileDirname}/build/${fileBasenameNoExtension}",
-            "args": ["${fileDirname}/test/performance_tests", "${fileDirname}/test/my_execution_times.mat"],
+            "program": "${workspaceFolder}/build/knnsearch",
+            "args": ["${workspaceFolder}/test/approx_tests/test01.mat", "C", "Q", "K", "IDX", "D", "--approx", "--verbose", "-o${fileDirname}/test/approx_tests/my_output.mat"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

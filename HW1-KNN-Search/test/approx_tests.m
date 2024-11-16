@@ -8,8 +8,8 @@ if ~exist('approx_tests', 'dir')
 end
 
 C = rand(10000000, 2);
-Q = rand(1, 2);
-K = int32(3);
+Q = rand(3, 2);
+K = int32(10);
 
 tic;
 [IDX, D] = knnsearch(C, Q, 'K', K, 'SortIndices', false);

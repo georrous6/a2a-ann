@@ -11,21 +11,21 @@ int main(int argc, char *argv[])
     Options opts;
     opts.output_filename = NULL;
     int CM, CN, QM, QN;
-    const char *filename;
+    const char *filename, *C_NAME, *Q_NAME, *K_NAME, *IDX_NAME, *D_NAME;
     double *C = NULL, *Q = NULL, *D = NULL;
     int *IDX = NULL, *K = NULL;
     int status = EXIT_FAILURE;
 
     // Parse command line arguments
-    if (parse_arguments(argc, argv, &opts, &filename)) goto cleanup;
+    if (parse_arguments(argc, argv, &opts, &filename, &C_NAME, &Q_NAME, &K_NAME, &IDX_NAME, &D_NAME)) goto cleanup;
     
     // load matrices from input file
-    C = (double *)load_matrix(filename, "C", &CM, &CN);
+    C = (double *)load_matrix(filename, C_NAME, &CM, &CN);
     if (!C) goto cleanup;
-    Q = (double *)load_matrix(filename, "Q", &QM, &QN);
+    Q = (double *)load_matrix(filename, Q_NAME, &QM, &QN);
     if (!Q) goto cleanup;
     int a, b;  // dummy variables
-    K  = (int *)load_matrix(filename, "K", &a, &b);
+    K  = (int *)load_matrix(filename, K_NAME, &a, &b);
     if (!K) goto cleanup;
 
     if (CN != QN)
@@ -34,15 +34,19 @@ int main(int argc, char *argv[])
         goto cleanup;
     }
 
-    printf("Input Filename: %s\n", filename);
-    printf("Output Filename: %s\n", opts.output_filename ? opts.output_filename : "None");
-    printf("Size of Corpus: %d\n", CM);
-    printf("Size of Queries: %d\n", QM);
-    printf("K: %d\n", *K);
-    printf("Dimensions: %d\n", CN);
-    printf("Sort Distances: %s\n", opts.sorted == 1 ? "Yes" : "No");
-    printf("Approximate Solution: %s\n", opts.approx == 1 ? "Yes" : "No");
-    printf("Number of Threads: %d\n", opts.num_threads == -1 ? 1 : opts.num_threads);
+    if (opts.verbose == 1)
+    {
+        printf("Input Filename: %s\n", filename);
+        printf("Output Filename: %s\n", opts.output_filename ? opts.output_filename : "None");
+        printf("Size of Corpus: %d\n", CM);
+        printf("Size of Queries: %d\n", QM);
+        printf("K: %d\n", *K);
+        printf("Dimensions: %d\n", CN);
+        printf("Sort Distances: %s\n", opts.sorted == 1 ? "Yes" : "No");
+        printf("Approximate Solution: %s\n", opts.approx == 1 ? "Yes" : "No");
+        printf("Verbose: %s\n", opts.verbose == 1 ? "Yes" : "No");
+        printf("Number of Threads: %d\n", opts.num_threads == -1 ? 1 : opts.num_threads);
+    }
 
     clock_t start = clock();
     if (knnsearch(Q, C, &IDX, &D, QM, CM, QN, *K, opts.sorted, opts.num_threads, opts.approx)) goto cleanup;
@@ -50,13 +54,14 @@ int main(int argc, char *argv[])
  
     if (opts.output_filename)  // save the results in ouptut file
     {
-        if (store_matrix((void *)D, "D", QM, *K, opts.output_filename, DOUBLE_TYPE, 'w')) goto cleanup;
-        if (store_matrix((void *)IDX, "IDX", QM, *K, opts.output_filename, INT_TYPE, 'a')) goto cleanup;
+        if (store_matrix((void *)D, D_NAME, QM, *K, opts.output_filename, DOUBLE_TYPE, 'a')) goto cleanup;
+        if (store_matrix((void *)IDX, IDX_NAME, QM, *K, opts.output_filename, INT_TYPE, 'a')) goto cleanup;
+        if (opts.verbose == 1) printf("\nOutput data are saved at: %s\n", opts.output_filename);
     }
     else  // no output file specified, diplay the results in standard output
     {
-        print_matrix((void *)D, "D", QM, *K, DOUBLE_TYPE);
-        print_matrix((void *)IDX, "IDX", QM, *K, INT_TYPE);
+        print_matrix((void *)D, D_NAME, QM, *K, DOUBLE_TYPE);
+        print_matrix((void *)IDX, IDX_NAME, QM, *K, INT_TYPE);
     }
 
     status = EXIT_SUCCESS;
@@ -69,15 +74,18 @@ cleanup:
     if (IDX) free(IDX);
     if (opts.output_filename) free(opts.output_filename);
 
-    if (status == EXIT_SUCCESS)
+    if (opts.verbose == 1)
     {
-        printf("\n\nProccess finished successfully. Ellapsed time: %lf sec\n", ((double) (end - start)) / CLOCKS_PER_SEC);
+        printf("\n-------------------\n");
+        if (status == EXIT_SUCCESS)
+        {
+            printf("Proccess finished successfully. Ellapsed time: %lf sec\n", ((double) (end - start)) / CLOCKS_PER_SEC);
+        }
+        else
+        {
+            printf("Proccess terminated unexpectedly\n");
+        }
     }
-    else
-    {
-        printf("\n\nProccess terminated unexpectedly\n");
-    }
-
 
     return status;
 }

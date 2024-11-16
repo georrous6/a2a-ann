@@ -114,7 +114,6 @@ int store_matrix(const void* mat, const char* matname, int rows, int cols, const
     if (mode == 'w')
     {
         // Overwrite mode: create a new file
-        errno = 0;
         matfp = Mat_CreateVer(filename, NULL, MAT_FT_MAT5);
         if (!matfp) 
         {
@@ -248,30 +247,38 @@ void print_matrix(const void* mat, const char* name, int rows, int cols, MATRIX_
 
 void print_usage(const char *program_name) 
 {
-    fprintf(stderr, "Usage: %s <filename>.mat [-a] [-s] [-o <output_file>.mat] [-jN]\n", program_name);
+    fprintf(stderr, "Usage: %s <filename>.mat <C> <Q> <K> <IDX> <D> [-s] [-a] [-v] [-o <output_file>.mat] [-jN]\n", program_name);
+    fprintf(stderr, "C        The coprus matrix\n");
+    fprintf(stderr, "Q        The queries matrix\n");
+    fprintf(stderr, "K        The matrix specifying the number of neighbors to search for\n");
+    fprintf(stderr, "IDX      The indexes matrix\n");
+    fprintf(stderr, "D        The distances matrix\n");
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -s, --sorted          Use sorted data\n");
     fprintf(stderr, "  -a, --approx          For approximate solution\n");
+    fprintf(stderr, "  -v, --verbose         Display information about the proccess\n");
     fprintf(stderr, "  -o, --output <file>   Specify output file (default is stdout)\n");
     fprintf(stderr, "  -jN                   Number of threads (N should be an integer)\n");
 }
 
 
-int parse_arguments(int argc, char *argv[], Options *opts, const char **filename) 
+int parse_arguments(int argc, char *argv[], Options *opts, const char **filename, const char **C_NAME, const char **Q_NAME, const char **K_NAME, const char** IDX_NAME, const char **D_NAME) 
 {
     int opt;
     
     // Initialize options
     opts->sorted = 0;              // Default: not sorted
     opts->approx = 0;              // Default: find the exact solution
+    opts->verbose = 0;             // Default: do not diplay information
     opts->output_filename = NULL;  // Default: no output filename
     opts->num_threads = -1;        // Default: automatically determine the number of threads
 
     // Parse optional arguments
-    const char *optstring = "sao:j:";
+    const char *optstring = "savo:j:";
     const struct option long_options[] = {
         {"sorted", no_argument, NULL, 's'},
         {"approx", no_argument, NULL, 'a'},
+        {"verbose", no_argument, NULL, 'v'},
         {"output", required_argument, NULL, 'o'},
         {"threads", required_argument, NULL, 'j'},
         {NULL, 0, NULL, 0}
@@ -282,10 +289,13 @@ int parse_arguments(int argc, char *argv[], Options *opts, const char **filename
         switch (opt) 
         {
             case 's':
-                opts->sorted = 1; // Set the sorted flag
+                opts->sorted = 1;  // Set the sorted flag
                 break;
             case 'a':
                 opts->approx = 1;  // Set the approximate solution flag
+                break;
+            case 'v':
+                opts->verbose = 1;  // Set the verbose flag
                 break;
             case 'o':
                 opts->output_filename = strdup(optarg); // Allocate memory for output filename
@@ -310,14 +320,21 @@ int parse_arguments(int argc, char *argv[], Options *opts, const char **filename
     }
 
     // Check for the correct number of positional arguments
-    if (argc - optind != 1) {
-        fprintf(stderr, "Expected input file <filename>.mat\n");
+    if (argc - optind != 6) 
+    {
+        fprintf(stderr, "Expected 6 positional arguments, provided %d\n", argc - optind);
         print_usage(argv[0]);
         return EXIT_FAILURE; // Return error
     }
 
     // Positional arguments
     *filename = argv[optind];
+    *C_NAME = argv[optind + 1];
+    *Q_NAME = argv[optind + 2];
+    *K_NAME = argv[optind + 3];
+    *IDX_NAME = argv[optind + 4];
+    *D_NAME = argv[optind + 5];
+
 
     return EXIT_SUCCESS; // Successful parsing
 }
