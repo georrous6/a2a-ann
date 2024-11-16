@@ -31,7 +31,7 @@ function generate_knn_tests()
     save('knn_tests/test02.mat', 'C', 'Q', 'K', 'test_D', 'test_IDX', 'test_name');
     
     MAX_SIZE = 1000;
-    NTESTS = 2;
+    NTESTS = 50;
     for i = 3:NTESTS
         M = randi(MAX_SIZE);
         N = randi(MAX_SIZE);

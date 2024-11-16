@@ -6,7 +6,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/knnsearch",
-            "args": ["${workspaceFolder}/test/approx_tests/test01.mat", "C", "Q", "K", "IDX", "D", "--approx", "--verbose", "-o${fileDirname}/test/approx_tests/my_output.mat"],
+            "args": ["${workspaceFolder}/test/approx_tests/test01.mat", "C", "Q", "K", "IDX", "D", "--approx", "--verbose", "-o${workspaceFolder}/test/approx_tests/my_output.mat"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

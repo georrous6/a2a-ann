@@ -13,13 +13,16 @@
                 "${workspaceFolder}/build/knnsearch",
                 "-I/opt/OpenBLAS/include",
                 "-I${workspaceFolder}/include",
+                "-I/usr/local/MATLAB/R2024b/extern/include",
+                "-L/usr/local/MATLAB/R2024b/bin/glnxa64",
                 "-L/opt/OpenBLAS/lib",
-                "-I/usr/local/include",
-                "-L/usr/local/lib",
-                "-lmatio",
+                "-L/usr/local/MATLAB/R2024b/sys/os/glnxa64",
+                "-lstdc++",
                 "-lopenblas",
                 "-lm",
-                "-lpthread"
+                "-lpthread",
+                "-lmat",
+                "-lmx"
             ],
             "options": {
                 "cwd": "${fileDirname}"

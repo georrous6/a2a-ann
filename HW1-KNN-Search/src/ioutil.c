@@ -1,4 +1,5 @@
 #include "ioutil.h"
+#include "mat.h"
 #include <stdio.h>
 #include <matio.h>
 #include <errno.h>
@@ -12,89 +13,96 @@
 
 void* load_matrix(const char *filename, const char* matname, int* rows, int* cols)
 {
-    mat_t *matfp;
-    matvar_t *matvar;
+    MATFile *matfp;
+    mxArray *matvar;
     void *data = NULL;
 
-    // Open the .mat file for reading
-    matfp = Mat_Open(filename, MAT_ACC_RDONLY);
+    // Open the MAT file
+    matfp = matOpen(filename, "r");
     if (!matfp) 
     {
-        fprintf(stderr, "Error opening MAT file \'%s\': %s\n", filename, strerror(errno));
+        fprintf(stderr, "Error opening MAT file '%s'.\n", filename);
         return NULL;
     }
 
-    // Read the matrix from the .mat file
-    matvar = Mat_VarRead(matfp, matname);
+    // Read the variable from the MAT file
+    matvar = matGetVariable(matfp, matname);
     if (!matvar) 
     {
         fprintf(stderr, "Error reading variable '%s' from MAT file.\n", matname);
-        Mat_Close(matfp);
+        matClose(matfp);
         return NULL;
     }
 
-    // Check if the variable is a 2D double matrix
-    if (matvar->rank == 2 && matvar->data_type == MAT_T_DOUBLE)
+    // Check if the variable is a 2D numeric matrix
+    if (mxGetNumberOfDimensions(matvar) == 2)
     {
-        // Store dimensions
-        *rows = matvar->dims[0];
-        *cols = matvar->dims[1];
+        *rows = mxGetM(matvar);
+        *cols = mxGetN(matvar);
 
-        // Allocate memory to copy matrix data
-        data = (double *)malloc((*rows) * (*cols) * sizeof(double));
-        if (!data) 
+        if (mxIsDouble(matvar))
         {
-            fprintf(stderr, "Error allocating memory for matrix data.\n");
-            Mat_VarFree(matvar);
-            Mat_Close(matfp);
-            return NULL;
-        }
-
-        // Copy matrix data with transposition
-        for (int i = 0; i < *rows; i++) 
-        {
-            for (int j = 0; j < *cols; j++) 
+            // Allocate memory for the double matrix
+            data = (double *)malloc((*rows) * (*cols) * sizeof(double));
+            if (!data) 
             {
-                ((double *)data)[i * (*cols) + j] = ((double *)matvar->data)[j * (*rows) + i];
+                fprintf(stderr, "Error allocating memory for matrix data.\n");
+                mxDestroyArray(matvar);
+                matClose(matfp);
+                return NULL;
+            }
+
+            // Copy and transpose data from column-major (MATLAB) to row-major (C)
+            double *matData = mxGetPr(matvar);
+            for (int i = 0; i < *rows; i++) 
+            {
+                for (int j = 0; j < *cols; j++) 
+                {
+                    ((double *)data)[i * (*cols) + j] = matData[j * (*rows) + i];
+                }
             }
         }
-    }
-    else if (matvar->rank == 2 && matvar->data_type == MAT_T_INT32)
-    {
-        // Store dimensions
-        *rows = matvar->dims[0];
-        *cols = matvar->dims[1];
-
-        // Allocate memory for a int matrix
-        data = (int *)malloc((*rows) * (*cols) * sizeof(int));
-        if (!data) 
+        else if (mxIsInt32(matvar))
         {
-            fprintf(stderr, "Error allocating memory for int matrix data.\n");
-            Mat_VarFree(matvar);
-            Mat_Close(matfp);
-            return NULL;
-        }
-
-        // Copy matrix data with transposition
-        for (int i = 0; i < *rows; i++) 
-        {
-            for (int j = 0; j < *cols; j++) 
+            // Allocate memory for the int matrix
+            data = (int *)malloc((*rows) * (*cols) * sizeof(int));
+            if (!data) 
             {
-                ((int*)data)[i * (*cols) + j] = ((int *)matvar->data)[j * (*rows) + i];
+                fprintf(stderr, "Error allocating memory for int matrix data.\n");
+                mxDestroyArray(matvar);
+                matClose(matfp);
+                return NULL;
+            }
+
+            // Copy and transpose data from column-major (MATLAB) to row-major (C)
+            int *matData = (int *)mxGetData(matvar);
+            for (int i = 0; i < *rows; i++) 
+            {
+                for (int j = 0; j < *cols; j++) 
+                {
+                    ((int *)data)[i * (*cols) + j] = matData[j * (*rows) + i];
+                }
             }
         }
+        else
+        {
+            fprintf(stderr, "The variable '%s' is not a supported numeric type (double or int32).\n", matname);
+            mxDestroyArray(matvar);
+            matClose(matfp);
+            return NULL;
+        }
     }
-    else 
+    else
     {
-        fprintf(stderr, "The variable '%s' is not a 2D int or double matrix.\n", matname);
-        Mat_VarFree(matvar);
-        Mat_Close(matfp);
+        fprintf(stderr, "The variable '%s' is not a 2D matrix.\n", matname);
+        mxDestroyArray(matvar);
+        matClose(matfp);
         return NULL;
     }
 
     // Clean up
-    Mat_VarFree(matvar);
-    Mat_Close(matfp);
+    mxDestroyArray(matvar);
+    matClose(matfp);
 
     return data;
 }
@@ -108,121 +116,88 @@ int store_matrix(const void* mat, const char* matname, int rows, int cols, const
         return EXIT_FAILURE;
     }
 
-    mat_t* matfp = NULL;
-
-    // Check mode and open the MAT file accordingly
-    if (mode == 'w')
+    // Open or create the MAT file
+    MATFile *matfp = NULL;
+    if (mode == 'w') 
     {
-        // Overwrite mode: create a new file
-        matfp = Mat_CreateVer(filename, NULL, MAT_FT_MAT5);
+        matfp = matOpen(filename, "w");
+    }
+    else if (mode == 'a') 
+    {
+        matfp = matOpen(filename, "u");
         if (!matfp) 
         {
-            fprintf(stderr, "Error creating MAT file '%s'. %s\n", filename, strerror(errno));
-            return EXIT_FAILURE;
-        }
-    }
-    else if (mode == 'a')
-    {
-        // Append mode: open an existing file or create it if it doesn't exist
-        errno = 0;  // clear errors
-        matfp = Mat_Open(filename, MAT_ACC_RDWR);
-        if (!matfp && errno == ENOENT)  // If file does not exist, create it
-        {
-            matfp = Mat_CreateVer(filename, NULL, MAT_FT_MAT5);
+            // File does not exist, create a new one
+            matfp = matOpen(filename, "w");
             if (!matfp) 
             {
-                fprintf(stderr, "Error creating MAT file '%s'. %s\n", filename, strerror(errno));
+                fprintf(stderr, "Error: Unable to create MAT file '%s'.\n", filename);
                 return EXIT_FAILURE;
             }
         }
-        else if(!matfp) // file already exists but cannot open it
-        {
-            fprintf(stderr, "Error opening MAT file '%s'. %s\n", filename, strerror(errno));
-            return EXIT_FAILURE;
-        }
     }
-    else
+    else 
     {
         fprintf(stderr, "Error: Unsupported file mode. Use 'w' for write or 'a' for append.\n");
         return EXIT_FAILURE;
     }
 
-
-    size_t dims[2] = {rows, cols};
-    matvar_t *matvar = NULL;
-    
-    if (type == DOUBLE_TYPE)
+    if (!matfp) 
     {
-        double *tmp = (double *)malloc(sizeof(double) * rows * cols);
-        if (!tmp)
+        fprintf(stderr, "Error opening MAT file '%s'.\n", filename);
+        return EXIT_FAILURE;
+    }
+
+    // Create a MATLAB array for the matrix
+    mxArray *mx_matrix = NULL;
+    if (type == DOUBLE_TYPE) // Assume 0 corresponds to double
+    {
+        mx_matrix = mxCreateDoubleMatrix(rows, cols, mxREAL);
+        if (!mx_matrix) 
         {
-            fprintf(stderr, "Error allocating memory for temporary matrix\n");
-            Mat_Close(matfp);
+            fprintf(stderr, "Error creating MATLAB matrix '%s'.\n", matname);
+            matClose(matfp);
             return EXIT_FAILURE;
         }
 
-        // Copy the contents of mat in column major order
-        int k = 0;
-        for (int j = 0; j < cols; j++) 
-        {
-            for (int i = 0; i < rows; i++) 
-            {
-                tmp[k++] = ((double *)mat)[i * cols + j];
-            }
-        }
-
-        matvar = Mat_VarCreate(matname, MAT_C_DOUBLE, MAT_T_DOUBLE, 2, dims, (void *)tmp, 0);
-        free(tmp);
+        // Copy data into the mxArray (column-major order)
+        memcpy(mxGetPr(mx_matrix), mat, rows * cols * sizeof(double));
     }
-    else if (type == INT_TYPE)
+    else if (type == INT_TYPE) // Assume 1 corresponds to int32
     {
-        int *tmp = (int *)malloc(sizeof(int) * rows * cols);
-        if (!tmp)
+        mx_matrix = mxCreateNumericMatrix(rows, cols, mxINT32_CLASS, mxREAL);
+        if (!mx_matrix) 
         {
-            fprintf(stderr, "Error allocating memory for temporary matrix\n");
-            Mat_Close(matfp);
+            fprintf(stderr, "Error creating MATLAB matrix '%s'.\n", matname);
+            matClose(matfp);
             return EXIT_FAILURE;
         }
 
-        // Copy the contents of mat in column major order
-        int k = 0;
-        for (int j = 0; j < cols; j++) 
-        {
-            for (int i = 0; i < rows; i++) 
-            {
-                tmp[k++] = ((int *)mat)[i * cols + j];
-            }
-        }
-        matvar = Mat_VarCreate(matname, MAT_C_INT32, MAT_T_INT32, 2, dims, (void *)tmp, 0);
-        free(tmp);
+        // Copy data into the mxArray (column-major order)
+        memcpy(mxGetData(mx_matrix), mat, rows * cols * sizeof(int));
     }
-    else
+    else 
     {
         fprintf(stderr, "Error: Unsupported matrix type.\n");
-        Mat_Close(matfp);
-        return EXIT_FAILURE;
-    }
-    
-    if (!matvar)
-    {
-        fprintf(stderr, "Error creating MAT variable %s\n", matname);
-        Mat_Close(matfp);
+        matClose(matfp);
         return EXIT_FAILURE;
     }
 
-    if (Mat_VarWrite(matfp, matvar, MAT_COMPRESSION_NONE))
+    // Write the matrix to the MAT file
+    if (matPutVariable(matfp, matname, mx_matrix) != 0) 
     {
-        fprintf(stderr, "Error writing variable \'%s\' to \'%s\'\n", matname, filename);
-        Mat_VarFree(matvar);
-        Mat_Close(matfp);
+        fprintf(stderr, "Error writing variable '%s' to '%s'.\n", matname, filename);
+        mxDestroyArray(mx_matrix);
+        matClose(matfp);
         return EXIT_FAILURE;
     }
 
-    Mat_VarFree(matvar);
-    Mat_Close(matfp);
+    // Clean up
+    mxDestroyArray(mx_matrix);
+    matClose(matfp);
+
     return EXIT_SUCCESS;
 }
-
 
 void print_matrix(const void* mat, const char* name, int rows, int cols, MATRIX_TYPE type)
 {
