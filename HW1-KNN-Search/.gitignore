@@ -1,0 +1,69 @@
+# Compiled object files
+*.o
+*.lo
+*.la
+*.al
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Static Libraries
+*.a
+
+# Dynamic Libraries
+*.so
+*.so.*
+*.dll
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# Debug files
+*.dSYM/
+*.stackdump
+*.strace
+
+# Generated files
+*.ii
+*.s
+*.su
+*.gcno
+*.gcda
+
+# CMake build files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Auto-generated config files
+config.h
+config.log
+config.status
+
+# Build directories
+/build/
+*/build/
+
+# Log files
+*.log
+
+# Editor/IDE specific files
+*~ 
+*.swp
+*.swo
+.idea/
+# .vscode/
+
+# Matlab files
+*.asv
+*.mat
+*.hdf5
