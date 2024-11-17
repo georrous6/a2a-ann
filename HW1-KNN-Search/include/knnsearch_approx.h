@@ -1,7 +1,7 @@
 #ifndef KNNSEARCH_APPROX_H
 #define KNNSEARCH_APPROX_H
 
-#define MAX_LEAF_SIZE 1000  // maximum number of points on a leaf
+#define MAX_LEAF_SIZE 100  // maximum number of points on a leaf
 
 
 typedef struct Node {

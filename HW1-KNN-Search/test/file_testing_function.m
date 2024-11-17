@@ -1,4 +1,4 @@
-function result = knn_testing_function(matFile)
+function result = file_testing_function(matFile)
     % Load matrices from the provided .mat file
     data = load(matFile);
     
@@ -16,7 +16,7 @@ function result = knn_testing_function(matFile)
     test_IDX = data.test_IDX;
     test_D = data.test_D;
     test_name = data.test_name;
-    fprintf("Running %s...\n", test_name);
+    fprintf("Running %s...          ", test_name);
     
     % Sort the distances and corresponding indices for comparison
     [my_D_sorted, my_sort_order] = sort(my_D, 2);  % Sort each row
@@ -24,14 +24,9 @@ function result = knn_testing_function(matFile)
                                    repmat((1:size(my_IDX, 1))', 1, size(my_IDX, 2)), ...
                                    my_sort_order));
     
-    [test_D_sorted, test_sort_order] = sort(test_D, 2); % Sort each row
-    test_IDX_sorted = test_IDX(sub2ind(size(test_IDX), ...
-                                       repmat((1:size(test_IDX, 1))', 1, size(test_IDX, 2)), ...
-                                       test_sort_order));
-    
     % Compare sorted matrices
     tolerance = 1e-10;
-    if all(abs(my_D_sorted(:) - test_D_sorted(:)) < tolerance) && isequal(my_IDX_sorted, test_IDX_sorted)
+    if all(abs(my_D_sorted(:) - test_D(:)) < tolerance) && isequal(my_IDX_sorted, test_IDX)
         result = 0; % Success
     else
         result = 1; % Failure

@@ -1,4 +1,4 @@
-function generate_knn_tests()
+function generate_test_files()
 
     % some edge case tests
     C = 7.2;
@@ -6,32 +6,32 @@ function generate_knn_tests()
     K = int32(1);
     
     % Create directory if it doesn't exist
-    if ~exist('knn_tests', 'dir')
-        mkdir('knn_tests');
+    if ~exist('test_files', 'dir')
+        mkdir('test_files');
     end
     
-    [test_IDX, test_D] = knnsearch(C, Q, 'K', K, 'SortIndices', false);
+    [test_IDX, test_D] = knnsearch(C, Q, 'K', K, 'SortIndices', true);
     
     % Convert IDX to int32 before saving
     test_IDX = int32(test_IDX);
     
     test_name = "Test 1";
-    save('knn_tests/test01.mat', 'C', 'Q', 'K', 'test_D', 'test_IDX', 'test_name');
+    save('test_files/test01.mat', 'C', 'Q', 'K', 'test_D', 'test_IDX', 'test_name');
     
     C = [4.7, 5.2, 4.9; 0, 1.1, 2; 2.4, 6.7, 3.3];
     Q = [3.7, 1.2, 4.6];
     K = int32(2);
     
-    [test_IDX, test_D] = knnsearch(C, Q, 'K', K, 'SortIndices', false);
+    [test_IDX, test_D] = knnsearch(C, Q, 'K', K, 'SortIndices', true);
     
     % Convert IDX to int32 before saving
     test_IDX = int32(test_IDX);
     
     test_name = "Test 2";
-    save('knn_tests/test02.mat', 'C', 'Q', 'K', 'test_D', 'test_IDX', 'test_name');
+    save('test_files/test02.mat', 'C', 'Q', 'K', 'test_D', 'test_IDX', 'test_name');
     
-    MAX_SIZE = 1000;
-    NTESTS = 50;
+    MAX_SIZE = 2000;
+    NTESTS = 99;
     for i = 3:NTESTS
         M = randi(MAX_SIZE);
         N = randi(MAX_SIZE);
@@ -40,15 +40,15 @@ function generate_knn_tests()
         Q = rand(M, L);
         K = int32(randi(N));
     
-        [test_IDX, test_D] = knnsearch(C, Q, 'K', K, 'SortIndices', false);
+        [test_IDX, test_D] = knnsearch(C, Q, 'K', K, 'SortIndices', true);
     
         % Convert IDX to int32 before saving
         test_IDX = int32(test_IDX);
         test_name = sprintf("Test %d", i);
         if i < 10
-            save(sprintf('knn_tests/test0%d.mat', i), 'C', 'Q', 'K', 'test_D', 'test_IDX', 'test_name');
+            save(sprintf('test_files/test0%d.mat', i), 'C', 'Q', 'K', 'test_D', 'test_IDX', 'test_name');
         else
-            save(sprintf('knn_tests/test%d.mat', i), 'C', 'Q', 'K', 'test_D', 'test_IDX', 'test_name');
+            save(sprintf('test_files/test%d.mat', i), 'C', 'Q', 'K', 'test_D', 'test_IDX', 'test_name');
         end
     end
 end

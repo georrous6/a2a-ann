@@ -160,8 +160,16 @@ int store_matrix(const void* mat, const char* matname, int rows, int cols, const
             return EXIT_FAILURE;
         }
 
-        // Copy data into the mxArray (column-major order)
-        memcpy(mxGetPr(mx_matrix), mat, rows * cols * sizeof(double));
+            // Transpose and copy data into the mxArray (convert row-major to column-major)
+            double *mxData = mxGetPr(mx_matrix);
+            const double *inputData = (const double *)mat;
+            for (int i = 0; i < rows; i++) 
+            {
+                for (int j = 0; j < cols; j++) 
+                {
+                    mxData[j * rows + i] = inputData[i * cols + j];
+                }
+            }
     }
     else if (type == INT_TYPE) // Assume 1 corresponds to int32
     {
@@ -173,8 +181,16 @@ int store_matrix(const void* mat, const char* matname, int rows, int cols, const
             return EXIT_FAILURE;
         }
 
-        // Copy data into the mxArray (column-major order)
-        memcpy(mxGetData(mx_matrix), mat, rows * cols * sizeof(int));
+        // Transpose and copy data into the mxArray (convert row-major to column-major)
+        int *mxData = (int *)mxGetData(mx_matrix);
+        const int *inputData = (const int *)mat;
+        for (int i = 0; i < rows; i++) 
+        {
+            for (int j = 0; j < cols; j++) 
+            {
+                mxData[j * rows + i] = inputData[i * cols + j];
+            }
+        }
     }
     else 
     {
@@ -198,6 +214,7 @@ int store_matrix(const void* mat, const char* matname, int rows, int cols, const
 
     return EXIT_SUCCESS;
 }
+
 
 void print_matrix(const void* mat, const char* name, int rows, int cols, MATRIX_TYPE type)
 {

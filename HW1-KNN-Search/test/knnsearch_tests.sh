@@ -1,18 +1,28 @@
 #!/bin/bash
 
-# Check for proper arguments
-if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 /path/to/executable"
+# Define variables
+SOURCE_FILE="../main.c"
+BUILD_DIR="../build"
+EXECUTABLE_NAME="knnsearch"
+SCRIPT_DIR=$(dirname "$0")  # Directory where this script is located
+TEST_DIR="$SCRIPT_DIR/test_files"  # Directory to look for test files
+
+# Check if the source file exists
+if [[ ! -f "$SOURCE_FILE" ]]; then
+    echo "Error: Source file '$SOURCE_FILE' not found."
     exit 1
 fi
 
-EXECUTABLE=$1
-SCRIPT_DIR=$(dirname "$0")  # Directory where this script is located
-TEST_DIR="$SCRIPT_DIR/knn_tests"  # Directory to look for test files
+# Ensure the build directory exists
+if [[ ! -d "$BUILD_DIR" ]]; then
+    echo "Build directory not found. Creating '$BUILD_DIR'..."
+    mkdir -p "$BUILD_DIR"
+fi
 
-# Ensure the executable exists and is executable
-if [ ! -x "$EXECUTABLE" ]; then
-    echo "Error: $EXECUTABLE is not executable or does not exist."
+# Compile the source file
+gcc -fdiagnostics-color=always "$SOURCE_FILE" ../src/*.c -o "$BUILD_DIR/$EXECUTABLE_NAME" -I/opt/OpenBLAS/include -I../include -I/usr/local/MATLAB/R2024b/extern/include -L/usr/local/MATLAB/R2024b/bin/glnxa64 -L/opt/OpenBLAS/lib -L/usr/local/MATLAB/R2024b/sys/os/glnxa64 -lstdc++ -lopenblas -lm -lpthread -lmat -lmx
+if [[ $? -ne 0 ]]; then
+    echo "Error: Compilation failed."
     exit 1
 fi
 
@@ -50,22 +60,22 @@ for FILE in "$TEST_DIR"/*; do
     # echo "Processing $FILE..."
 
     # Run the executable with the file as an argument
-    $EXECUTABLE "$FILE" "C" "Q" "K" "my_IDX" "my_D" "-o$FILE"
+    "$BUILD_DIR/$EXECUTABLE_NAME" "$FILE" "C" "Q" "K" "my_IDX" "my_D" "-o$FILE"
     if [ $? -ne 0 ]; then
         echo "Error: Executable failed for $FILE."
         exit 1
     fi
 
     # Run the MATLAB testing function
-    matlab -batch "result = knn_testing_function('$FILE'); exit(result);"
+    matlab -batch "result = file_testing_function('$FILE'); exit(result);"
     MATLAB_STATUS=$?
 
     # MATLAB returns 0 for successful execution, 1 otherwise
     if [ "$MATLAB_STATUS" -eq 0 ]; then
         PASSED_TESTS=$((PASSED_TESTS + 1))
-        echo -e "\033[0;32mPassed\033[0m"  # Green
+        echo -e "\033[1;32mPassed\033[0m"  # Green
     else
-        echo -e "\033[0;31mFailed\033[0m"  # Red
+        echo -e "\033[1;31mFailed\033[0m"  # Red
     fi
 done
 

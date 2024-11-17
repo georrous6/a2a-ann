@@ -1,6 +1,6 @@
 ## To compile the target knnsearch_exact.c
 
-gcc -g main.c src/*.c -o build/knnsearch -I/opt/OpenBLAS/include -I./include -L/opt/OpenBLAS/lib -I/usr/local/include -L/usr/local/lib -lmatio -lopenblas -lm -lpthread
+gcc -fdiagnostics-color=always -g main.c src/*.c -o build/knnsearch -I/opt/OpenBLAS/include -Iinclude -I/usr/local/MATLAB/R2024b/extern/include -L/usr/local/MATLAB/R2024b/bin/glnxa64 -L/opt/OpenBLAS/lib -L/usr/local/MATLAB/R2024b/sys/os/glnxa64 -lstdc++ -lopenblas -lm -lpthread -lmat -lmx
 
 Open your shell's configuration file:
 vim ~/.bashrc
@@ -23,3 +23,7 @@ cd test
 chmod +x knn_tests.sh
 
 ./knn_tests path/to/executable
+
+### or
+
+gcc -fdiagnostics-color=always -g validity_tests.c src/*.c -o build/validity_tests -I/opt/OpenBLAS/include -Iinclude -I/usr/local/MATLAB/R2024b/extern/include -L/usr/local/MATLAB/R2024b/bin/glnxa64 -L/opt/OpenBLAS/lib -L/usr/local/MATLAB/R2024b/sys/os/glnxa64 -lstdc++ -lopenblas -lm -lpthread -lmat -lmx

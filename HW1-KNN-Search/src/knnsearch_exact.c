@@ -278,7 +278,6 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
             }
         }
         
-        
         if (nthreads == 1)  // no multithreading
         {
             KNNExactTask task = (KNNExactTask){Dall, IDXall, K, N, MBLOCK_SIZE, sorted};
