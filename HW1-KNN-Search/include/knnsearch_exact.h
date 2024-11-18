@@ -19,11 +19,18 @@ extern int runningTasks;                  // Holds the number of running tasks
  * Thread Task for the exact K-Nearest Neighbors problem
  */
 typedef struct KNNExactTask {
+    const double *C;
+    const double *Q;
     double *Dall;
     int *IDXall;
-    int K;
-    int N;
-    int MBLOCK_THREAD_SIZE;
+    const double *sqrmag_C;
+    const double *sqrmag_Q;
+    const int K;
+    const int N;
+    const int L;
+    const int QUERIES_NUM;     // Number of queries for the task to proccess
+    const int q_index;         // Index of the first query to be proccessed
+    const int q_index_thread;  // Index of the query to be proccesed inside a thread
 } KNNExactTask;
 
 

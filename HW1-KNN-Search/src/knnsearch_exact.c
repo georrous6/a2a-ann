@@ -157,14 +157,33 @@ void executeKNNExactTask(const KNNExactTask *task)
 {
     double *Dall = task->Dall;
     int *IDXall = task->IDXall;
-    int MBLOCK_THREAD_SIZE = task->MBLOCK_THREAD_SIZE;
-    int N = task->N;
-    int K = task->K;
+    const double *sqrmag_C = task->sqrmag_C;
+    const double *sqrmag_Q = task->sqrmag_Q;
+    const double *C = task->C;
+    const double *Q = task->Q;
+    const int QUERIES_NUM = task->QUERIES_NUM;
+    const int N = task->N;
+    const int K = task->K;
+    const int L = task->L;
+    const int q_index = task->q_index;
+    const int q_index_thread = task->q_index_thread;
+
+    // compute D = -2*Q*C'
+    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, QUERIES_NUM, N, L, -2.0, Q + q_index * L, L, C, L, 0.0, Dall + q_index_thread * N, N);
+
+    // compute the distance matrix D by applying the formula D = sqrt(C.^2 -2*Q*C' + (Q.^2)')
+    for (int i = 0; i < QUERIES_NUM; i++)
+    {
+        for (int j = 0; j < N; j++)
+        {
+            Dall[(i + q_index_thread) * N + j] += sqrmag_Q[i + q_index] + sqrmag_C[j];
+        }
+    }
 
     // apply Quick Select algorithm for each row of distance matrix
-    for (int i = 0; i < MBLOCK_THREAD_SIZE; i++)
+    for (int i = 0; i < QUERIES_NUM; i++)
     {
-        qselect(Dall + i * N, IDXall + i * N, 0, N - 1, K);
+        qselect(Dall + (i + q_index_thread) * N, IDXall + (i + q_index_thread) * N, 0, N - 1, K);
     }
 }
 
@@ -175,7 +194,7 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
     runningTasks = 0;
     double *Dall = NULL, *sqrmag_Q = NULL, *sqrmag_C = NULL;
     int *IDXall = NULL;
-    int MBLOCK_MAX_SIZE, NBLOCK_MAX_SIZE;
+    int MAX_QUERIES_MEMORY;  // The maximum number of queries that can be stored in memory
     int status = EXIT_FAILURE;
     if (K <= 0)
     {
@@ -184,8 +203,8 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
     }
 
     // Allocate the appropriate amount of memory for the matrices and compute the
-    // maximum coprus size that fits in memory
-    if (alloc_memory(&Dall, &IDXall, &sqrmag_Q, &sqrmag_C, M, N, &MBLOCK_MAX_SIZE))
+    // maximum number of queries that can be proccessed
+    if (alloc_memory(&Dall, &IDXall, &sqrmag_Q, &sqrmag_C, M, N, &MAX_QUERIES_MEMORY))
     {
         fprintf(stderr, "knnsearch_exact: Error allocating memory\n");
         return status;
@@ -193,7 +212,7 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
 
     // if the number of threads is -1 find automatically the appropriate number of threads, 
     // otherwise use the number of threads the user passed explicitly
-    nthreads = nthreads == -1 ? get_num_threads(MBLOCK_MAX_SIZE, N) : nthreads;
+    nthreads = nthreads == -1 ? get_num_threads(MAX_QUERIES_MEMORY, N) : nthreads;
 
     pthread_t* threads = NULL;
     pthread_attr_t attr;
@@ -227,14 +246,14 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
     }
 
 
-    for (int M_INDEX = 0; M_INDEX * MBLOCK_MAX_SIZE < M; M_INDEX++) 
+    // Iterate through each block of queries
+    int q_index = 0;
+    while (q_index < M) 
     {
-        const int MBLOCK_SIZE = (M - M_INDEX * MBLOCK_MAX_SIZE) > MBLOCK_MAX_SIZE ? MBLOCK_MAX_SIZE : (M - M_INDEX * MBLOCK_MAX_SIZE);
-        const int Q_OFFSET = M_INDEX * MBLOCK_MAX_SIZE * L;
-        const int D_OFFSET = M_INDEX * MBLOCK_MAX_SIZE * K;
+        const int QUERIES_NUM = (M - q_index) > MAX_QUERIES_MEMORY ? MAX_QUERIES_MEMORY : (M - q_index);
 
         // initialize index matrix
-        for (int i = 0; i < MBLOCK_SIZE; i++)
+        for (int i = 0; i < QUERIES_NUM; i++)
         {
             for (int j = 0; j < N; j++)
             {
@@ -242,62 +261,93 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
             }
         }
 
-
-        // compute D = -2*Q*C'
-        cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, MBLOCK_SIZE, N, L, -2.0, Q + Q_OFFSET, L, C, L, 0.0, Dall, N);
-
-        // compute the square of magnitudes of the row vectors of matrix Q
-        for (int i = 0; i < MBLOCK_SIZE; i++)
-        {
-            sqrmag_Q[i] = cblas_ddot(L, Q + i * L + Q_OFFSET, 1, Q + i * L + Q_OFFSET, 1);
-        }
-
-        // compute the square of magnitudes of the row vectors of matrix C
+        // Pre compute the square of magnitudes of the row vectors of matrix C
+        // since it is shared accross threads
         for (int i = 0; i < N; i++)
         {
             sqrmag_C[i] = cblas_ddot(L, C + i * L, 1, C + i * L, 1);
         }
 
-        // compute the distance matrix D by applying the formula D = sqrt(C.^2 -2*Q*C' + (Q.^2)')
-        for (int i = 0; i < MBLOCK_SIZE; i++)
+        // Pre compute the square of magnitudes of the row vectors of matrix Q
+        for (int i = 0; i < QUERIES_NUM; i++)
         {
-            for (int j = 0; j < N; j++)
-            {
-                Dall[i * N + j] += sqrmag_Q[i] + sqrmag_C[j];
-            }
+            sqrmag_Q[i] = cblas_ddot(L, Q + (i + q_index) * L, 1, Q + (i + q_index) * L, 1);
         }
         
         if (nthreads == 1)  // no multithreading
         {
-            KNNExactTask task = (KNNExactTask){Dall, IDXall, K, N, MBLOCK_SIZE};
+            KNNExactTask task = {
+                .C = C, 
+                .Q = Q, 
+                .Dall = Dall,
+                .IDXall = IDXall,
+                .QUERIES_NUM = QUERIES_NUM,
+                .sqrmag_C = sqrmag_C,
+                .sqrmag_Q = sqrmag_Q,
+                .N = N,
+                .L = L,
+                .K = K,
+                .q_index = q_index,
+                .q_index_thread = 0
+            };
             executeKNNExactTask(&task);
         }
         else  // multithreading
         {
+            printf("\nThreads: %d\n", nthreads);
             // Create the tasks and add them to the queue
-            if (MBLOCK_SIZE / nthreads == 0)  // create only one task
+            if (QUERIES_NUM / nthreads == 0)  // create only one task
             {
-                KNNExactTask task = (KNNExactTask){Dall, IDXall, K, N, MBLOCK_SIZE};
+                KNNExactTask task = {
+                    .C = C, 
+                    .Q = Q, 
+                    .Dall = Dall,
+                    .IDXall = IDXall,
+                    .QUERIES_NUM = QUERIES_NUM,
+                    .sqrmag_C = sqrmag_C,
+                    .sqrmag_Q = sqrmag_Q,
+                    .N = N,
+                    .L = L,
+                    .K = K,
+                    .q_index = q_index,
+                    .q_index_thread = 0
+                };
                 Queue_enqueue(&tasksQueue, (void *)&task);  // add task to the queue
                 runningTasks++;
             }
             else  // split workload accross all the threads
             {
-                int remainder = MBLOCK_SIZE % nthreads;
-                int MBLOCK_THREAD_SIZE = 0, D_THREAD_OFFSET = 0;
+                int remainder = QUERIES_NUM % nthreads;
+                int QUERIES_NUM_THREAD = 0;  // number of queries being proccesed on each thread
+                int q_index_thread = 0;  // indexing of the queries in each block of queries
                 for (int t = 0; t < nthreads; t++)
                 {
-                    D_THREAD_OFFSET += MBLOCK_THREAD_SIZE * N;
-                    MBLOCK_THREAD_SIZE = MBLOCK_SIZE / nthreads;
+                    //D_THREAD_OFFSET += MBLOCK_THREAD_SIZE * N;
+                    QUERIES_NUM_THREAD = QUERIES_NUM / nthreads;
                     if (remainder > 0)
                     {
                         remainder--;
-                        MBLOCK_THREAD_SIZE++;
+                        QUERIES_NUM_THREAD++;
                     }
 
-                    KNNExactTask task = (KNNExactTask){Dall + D_THREAD_OFFSET, IDXall + D_THREAD_OFFSET, K, N, MBLOCK_THREAD_SIZE};
+                    //KNNExactTask task = (KNNExactTask){Dall + D_THREAD_OFFSET, IDXall + D_THREAD_OFFSET, K, N, MBLOCK_THREAD_SIZE};
+                    KNNExactTask task = {
+                        .C = C, 
+                        .Q = Q, 
+                        .Dall = Dall,
+                        .IDXall = IDXall,
+                        .QUERIES_NUM = QUERIES_NUM_THREAD,
+                        .sqrmag_C = sqrmag_C,
+                        .sqrmag_Q = sqrmag_Q,
+                        .N = N,
+                        .L = L,
+                        .K = K,
+                        .q_index = q_index_thread + q_index,
+                        .q_index_thread = q_index_thread
+                    };
                     Queue_enqueue(&tasksQueue, (void *)&task);  // add task to the queue
                     runningTasks++;
+                    q_index_thread += QUERIES_NUM_THREAD;
                 }
             }
 
@@ -314,20 +364,22 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
 
         // now copy the first K elements of each row of matrices
         // Dall, IDXall to D and IDX respectivelly
-        for (int i = 0; i < MBLOCK_SIZE; i++)
+        for (int i = 0; i < QUERIES_NUM; i++)
         {
             for (int j = 0; j < K; j++)
             {
-                D[D_OFFSET + i * K + j] = sqrt(Dall[i * N + j]);
-                IDX[D_OFFSET + i * K + j] = IDXall[i * N + j]; // zero-based indexing
+                D[(q_index + i) * K + j] = sqrt(Dall[i * N + j]);
+                IDX[(q_index + i) * K + j] = IDXall[i * N + j];  // zero-based indexing
             }
 
             // sort each row of the distance matrix
             if (sorted)
             {
-                qsort_(D + D_OFFSET + i * K, IDX + D_OFFSET + i * K, 0, K - 1);
+                qsort_(D + (q_index + i) * K, IDX + (q_index + i) * K, 0, K - 1);
             }
         }
+
+        q_index += QUERIES_NUM;
     }
 
     if (nthreads > 1)
@@ -388,9 +440,11 @@ void *startKNNExactThread(void *pool)
                 
         pthread_mutex_unlock(&mutexQueue);
         
+        printf("Thread executes task...\n");
         executeKNNExactTask(&task);
 
         pthread_mutex_lock(&mutexQueue);
+        printf("Thread finished task\n");
         runningTasks--;
         if (runningTasks == 0)
         {
