@@ -26,28 +26,30 @@ int test_case(const char *filename, double *recall, double *queries_per_sec)
     setColor(DEFAULT);
     int M, N, L;
     double *C = NULL, *Q = NULL, *my_D = NULL;
-    int *test_IDX = NULL, *my_IDX = NULL;
+    int *K = NULL, *test_IDX = NULL, *my_IDX = NULL;
     int status = EXIT_FAILURE;
 
     // load corpus matrix from file
-    C = (double *)load_matrix(filename, "/train", &N, &L); if (!C) goto cleanup;
+    C = (double *)load_matrix(filename, "C", &N, &L); if (!C) goto cleanup;
 
     // load queries matrix from file
-    Q = (double *)load_matrix(filename, "/test", &M, &L); if (!Q) goto cleanup;
+    Q = (double *)load_matrix(filename, "Q", &M, &L); if (!Q) goto cleanup;
+
+    int a, b;
+    // load K value from file
+    K = (int *)load_matrix(filename, "K", &a, &b); if (!K) goto cleanup;
 
     // load expected indices matrix from file
-    int a, b;
-    test_IDX = (int *)load_matrix(filename, "/neighbors", &a, &b); if (!test_IDX) goto cleanup;
-    const int K = b;
+    test_IDX = (int *)load_matrix(filename, "test_IDX", &a, &b); if (!test_IDX) goto cleanup;
 
     // memory allocation for the estimated distance matrix
-    my_D = (double *)malloc(M * K * sizeof(double)); if (!my_D) goto cleanup;
+    my_D = (double *)malloc(M * (*K) * sizeof(double)); if (!my_D) goto cleanup;
 
     // memory allocation for the estimated index matrix
-    my_IDX = (int *)malloc(M * K * sizeof(int)); if (!my_IDX) goto cleanup;
+    my_IDX = (int *)malloc(M * (*K) * sizeof(int)); if (!my_IDX) goto cleanup;
 
     clock_t start = clock();
-    if (knnsearch_approx(Q, C, my_IDX, my_D, M, N, L, K, 0, -1)) goto cleanup;
+    if (knnsearch_approx(Q, C, my_IDX, my_D, M, N, L, *K, 0, -1)) goto cleanup;
     clock_t end = clock();
     *queries_per_sec = M / (((double)(end - start)) / CLOCKS_PER_SEC);
 
@@ -56,12 +58,12 @@ int test_case(const char *filename, double *recall, double *queries_per_sec)
 
     for (int i = 0; i < M; i++)
     {
-        for (int j = 0; j < K; j++)
+        for (int j = 0; j < *K; j++)
         {
-            const int index = test_IDX[i * K + j];
-            for (int t = 0; t < K; t++)
+            const int index = test_IDX[i * (*K) + j];
+            for (int t = 0; t < *K; t++)
             {
-                if (index == my_IDX[i * K + t])
+                if (index == my_IDX[i * (*K) + t])
                 {
                     found++;
                     break;
@@ -70,13 +72,12 @@ int test_case(const char *filename, double *recall, double *queries_per_sec)
         }
     }
 
-    // print_matrix(test_IDX, "test_IDX", M, *K, INT_TYPE);
-    // print_matrix(my_IDX, "my_IDX", M, *K, INT_TYPE);
-    *recall = ((double)found) / (M * K) * 100.0;
+    *recall = ((double)found) / (M * (*K)) * 100.0;
 
 cleanup:
     if (C) free(C);
     if (Q) free(Q);
+    if (K) free(K);
     if (my_D) free(my_D);
     if (my_IDX) free(my_IDX);
     if (test_IDX) free(test_IDX);
@@ -98,7 +99,7 @@ int main(int argc, char *argv[])
     size_t test_cnt;
     int found, total;
     double recall, queries_per_sec, recall_avg = 0, queries_per_sec_avg = 0;
-    char **file_paths = get_file_paths(argv[1], ".hdf5", &test_cnt, 1);
+    char **file_paths = get_file_paths(argv[1], ".mat", &test_cnt, 1);
     if (!file_paths)
     {
         return EXIT_FAILURE;

@@ -25,37 +25,39 @@ int test_case(const char *filename, double tolerance, int *passed)
     setColor(DEFAULT);
     int M, N, L;
     double *C = NULL, *Q = NULL, *my_D = NULL, *test_D = NULL;
-    int *test_IDX = NULL, *my_IDX = NULL;
+    int *K = NULL, *test_IDX = NULL, *my_IDX = NULL;
     int status = EXIT_FAILURE;
     *passed = 0;
 
     // load corpus matrix from file
-    C = (double *)load_matrix(filename, "/train", &N, &L); if (!C) goto cleanup;
+    C = (double *)load_matrix(filename, "C", &N, &L); if (!C) goto cleanup;
 
     // load queries matrix from file
-    Q = (double *)load_matrix(filename, "/test", &M, &L); if (!Q) goto cleanup;
+    Q = (double *)load_matrix(filename, "Q", &M, &L); if (!Q) goto cleanup;
+
+    int a, b;
+    // load K value from file
+    K = (int *)load_matrix(filename, "K", &a, &b); if (!K) goto cleanup;
 
     // load expected distances matrix from file
-    int a, b;
-    test_D = (double *)load_matrix(filename, "/distances", &a, &b); if (!test_D) goto cleanup;
-    const int K = b;
+    test_D = (double *)load_matrix(filename, "test_D", &a, &b); if (!test_D) goto cleanup;
 
     // load expected indices matrix from file
-    test_IDX = (int *)load_matrix(filename, "/neighbors", &a, &b); if (!test_IDX) goto cleanup;
+    test_IDX = (int *)load_matrix(filename, "test_IDX", &a, &b); if (!test_IDX) goto cleanup;
 
     // memory allocation for the estimated distance matrix
-    my_D = (double *)malloc(M * K * sizeof(double)); if (!my_D) goto cleanup;
+    my_D = (double *)malloc(M * (*K) * sizeof(double)); if (!my_D) goto cleanup;
 
     // memory allocation for the estimated index matrix
-    my_IDX = (int *)malloc(M * K * sizeof(int)); if (!my_IDX) goto cleanup;
+    my_IDX = (int *)malloc(M * (*K) * sizeof(int)); if (!my_IDX) goto cleanup;
 
-    if (knnsearch_exact(Q, C, my_IDX, my_D, M, N, L, K, 0, -1)) goto cleanup;
+    if (knnsearch_exact(Q, C, my_IDX, my_D, M, N, L, *K, 0, -1)) goto cleanup;
 
     // sort each row vector of the distances matrix
     // to check the correctness of the output
     for (int i = 0; i < M; i++)
     {
-        qsort_(my_D + i * K, my_IDX + i * K, 0, K - 1);
+        qsort_(my_D + i * (*K), my_IDX + i * (*K), 0, *K - 1);
     }
 
     status = EXIT_SUCCESS;
@@ -64,10 +66,10 @@ int test_case(const char *filename, double tolerance, int *passed)
     double x, y;
     for (int i = 0; i < M; i++)
     {
-        for (int j = 0; j < K; j++)
+        for (int j = 0; j < *K; j++)
         {
-            x = test_D[i * K + j];
-            y = my_D[i * K + j];
+            x = test_D[i * (*K) + j];
+            y = my_D[i * (*K) + j];
             if (fabs(x - y) >= tolerance)
             {
                 printf("Assertion %lf == %lf ", x, y);
@@ -78,11 +80,11 @@ int test_case(const char *filename, double tolerance, int *passed)
 
     for (int i = 0; i < M; i++)
     {
-        for (int j = 0; j < K; j++)
+        for (int j = 0; j < *K; j++)
         {
-            if (test_IDX[i * K + j] != my_IDX[i * K + j])
+            if (test_IDX[i * (*K) + j] != my_IDX[i * (*K) + j])
             {
-                printf("Assertion %d == %d ", test_IDX[i * K + j], my_IDX[i * K + j]);
+                printf("Assertion %d == %d ", test_IDX[i * (*K) + j], my_IDX[i * (*K) + j]);
                 goto cleanup;
             }
         }
@@ -93,6 +95,7 @@ int test_case(const char *filename, double tolerance, int *passed)
 cleanup:
     if (C) free(C);
     if (Q) free(Q);
+    if (K) free(K);
     if (my_D) free(my_D);
     if (my_IDX) free(my_IDX);
     if (test_D) free(test_D);
@@ -114,7 +117,7 @@ int main(int argc, char *argv[])
     size_t cnt_passed = 0;
     size_t test_cnt;
     int passed;
-    char **file_paths = get_file_paths(argv[1], ".hdf5", &test_cnt, 1);
+    char **file_paths = get_file_paths(argv[1], ".mat", &test_cnt, 1);
     if (!file_paths)
     {
         return EXIT_FAILURE;
@@ -122,7 +125,7 @@ int main(int argc, char *argv[])
 
     for (size_t i = 0; i < test_cnt; i++) 
     {
-        if (test_case(file_paths[i], 1e-3, &passed) == EXIT_SUCCESS)
+        if (test_case(file_paths[i], 1e-6, &passed) == EXIT_SUCCESS)
         {
             if (passed)
             {
