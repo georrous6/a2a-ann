@@ -160,22 +160,11 @@ void executeKNNExactTask(const KNNExactTask *task)
     int MBLOCK_THREAD_SIZE = task->MBLOCK_THREAD_SIZE;
     int N = task->N;
     int K = task->K;
-    int sorted = task->sorted;
-    if (!sorted)
+
+    // apply Quick Select algorithm for each row of distance matrix
+    for (int i = 0; i < MBLOCK_THREAD_SIZE; i++)
     {
-        // apply Quick Select algorithm for each row of distance matrix
-        for (int i = 0; i < MBLOCK_THREAD_SIZE; i++)
-        {
-            qselect(Dall + i * N, IDXall + i * N, 0, N - 1, K);
-        }
-    }
-    else
-    {
-        // apply Quick Sort algorithm for each row of distance matrix
-        for (int i = 0; i < MBLOCK_THREAD_SIZE; i++)
-        {
-            qsort_(Dall + i * N, IDXall + i * N, 0, N - 1);
-        }      
+        qselect(Dall + i * N, IDXall + i * N, 0, N - 1, K);
     }
 }
 
@@ -274,13 +263,13 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
         {
             for (int j = 0; j < N; j++)
             {
-                Dall[i * N + j] = sqrt(Dall[i * N + j] + sqrmag_Q[i] + sqrmag_C[j]);
+                Dall[i * N + j] += sqrmag_Q[i] + sqrmag_C[j];
             }
         }
         
         if (nthreads == 1)  // no multithreading
         {
-            KNNExactTask task = (KNNExactTask){Dall, IDXall, K, N, MBLOCK_SIZE, sorted};
+            KNNExactTask task = (KNNExactTask){Dall, IDXall, K, N, MBLOCK_SIZE};
             executeKNNExactTask(&task);
         }
         else  // multithreading
@@ -288,7 +277,7 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
             // Create the tasks and add them to the queue
             if (MBLOCK_SIZE / nthreads == 0)  // create only one task
             {
-                KNNExactTask task = (KNNExactTask){Dall, IDXall, K, N, MBLOCK_SIZE, sorted};
+                KNNExactTask task = (KNNExactTask){Dall, IDXall, K, N, MBLOCK_SIZE};
                 Queue_enqueue(&tasksQueue, (void *)&task);  // add task to the queue
                 runningTasks++;
             }
@@ -306,7 +295,7 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
                         MBLOCK_THREAD_SIZE++;
                     }
 
-                    KNNExactTask task = (KNNExactTask){Dall + D_THREAD_OFFSET, IDXall + D_THREAD_OFFSET, K, N, MBLOCK_THREAD_SIZE, sorted};
+                    KNNExactTask task = (KNNExactTask){Dall + D_THREAD_OFFSET, IDXall + D_THREAD_OFFSET, K, N, MBLOCK_THREAD_SIZE};
                     Queue_enqueue(&tasksQueue, (void *)&task);  // add task to the queue
                     runningTasks++;
                 }
@@ -329,8 +318,14 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
         {
             for (int j = 0; j < K; j++)
             {
-                D[D_OFFSET + i * K + j] = Dall[i * N + j];
+                D[D_OFFSET + i * K + j] = sqrt(Dall[i * N + j]);
                 IDX[D_OFFSET + i * K + j] = IDXall[i * N + j]; // zero-based indexing
+            }
+
+            // sort each row of the distance matrix
+            if (sorted)
+            {
+                qsort_(D + D_OFFSET + i * K, IDX + D_OFFSET + i * K, 0, K - 1);
             }
         }
     }

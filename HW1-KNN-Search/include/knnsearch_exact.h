@@ -24,7 +24,6 @@ typedef struct KNNExactTask {
     int K;
     int N;
     int MBLOCK_THREAD_SIZE;
-    int sorted;
 } KNNExactTask;
 
 

@@ -51,14 +51,7 @@ int test_case(const char *filename, double tolerance, int *passed)
     // memory allocation for the estimated index matrix
     my_IDX = (int *)malloc(M * (*K) * sizeof(int)); if (!my_IDX) goto cleanup;
 
-    if (knnsearch_exact(Q, C, my_IDX, my_D, M, N, L, *K, 0, -1)) goto cleanup;
-
-    // sort each row vector of the distances matrix
-    // to check the correctness of the output
-    for (int i = 0; i < M; i++)
-    {
-        qsort_(my_D + i * (*K), my_IDX + i * (*K), 0, *K - 1);
-    }
+    if (knnsearch_exact(Q, C, my_IDX, my_D, M, N, L, *K, 1, -1)) goto cleanup;
 
     status = EXIT_SUCCESS;
 
