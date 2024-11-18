@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <sys/sysinfo.h>
 #include <pthread.h>
+#include <sys/time.h>
 
 
 pthread_mutex_t mutexQueue;
@@ -124,6 +125,8 @@ int alloc_memory(double **Dall, int **IDXall, double **sqrmag_Q, double **sqrmag
     {
         *MBLOCK_MAX_SIZE = (max_allocable_memory - N * sizeof(double)) / 
                             (N * sizeof(int) + N * sizeof(double) + sizeof(double));
+
+        printf("Too large distance matrix. Max queries per block: %d\n", *MBLOCK_MAX_SIZE);
     }
 
     if (*MBLOCK_MAX_SIZE < 1) 
@@ -155,6 +158,9 @@ int alloc_memory(double **Dall, int **IDXall, double **sqrmag_Q, double **sqrmag
 
 void executeKNNExactTask(const KNNExactTask *task)
 {
+    struct timeval tstart, tend;
+    gettimeofday(&tstart, NULL);
+    printf("Thread executes task with %d queries...\n", task->QUERIES_NUM);
     double *Dall = task->Dall;
     int *IDXall = task->IDXall;
     const double *sqrmag_C = task->sqrmag_C;
@@ -185,6 +191,9 @@ void executeKNNExactTask(const KNNExactTask *task)
     {
         qselect(Dall + (i + q_index_thread) * N, IDXall + (i + q_index_thread) * N, 0, N - 1, K);
     }
+
+    gettimeofday(&tend, NULL);
+    printf("Thread finished task with %d queries. Started: %ld sec and %ld usec, Finished: %ld sec and %ld usec\n", task->QUERIES_NUM, tstart.tv_sec, tstart.tv_usec, tend.tv_sec, tend.tv_usec);
 }
 
 
@@ -221,6 +230,7 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
     // Create the threads if multithreading is desired
     if (nthreads > 1)
     {
+        openblas_set_num_threads(1);  // Ensure OpenBLAS uses only one thread
         Queue_init(&tasksQueue, sizeof(KNNExactTask));
         pthread_attr_init(&attr);
         pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
@@ -440,11 +450,9 @@ void *startKNNExactThread(void *pool)
                 
         pthread_mutex_unlock(&mutexQueue);
         
-        printf("Thread executes task...\n");
         executeKNNExactTask(&task);
 
         pthread_mutex_lock(&mutexQueue);
-        printf("Thread finished task\n");
         runningTasks--;
         if (runningTasks == 0)
         {
