@@ -11,6 +11,8 @@
         "cblas.h": "c",
         "matio.h": "c",
         "knnsearch_exact.h": "c",
-        "knnsearch_approx.h": "c"
+        "knnsearch_approx.h": "c",
+        "limits.h": "c",
+        "mat.h": "c"
     }
 }

@@ -6,7 +6,8 @@
                 "${workspaceFolder}/**",
                 "/opt/OpenBLAS/include/",
                 "${workspaceFolder}/include",
-                "/usr/local/MATLAB/R2024b/extern/include"
+                "/usr/local/MATLAB/R2024b/extern/include",
+                "/usr/lib/x86_64-linux-gnu/hdf5/serial/include"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang-14",

@@ -1,5 +1,6 @@
 #include "ioutil.h"
 #include "mat.h"
+#include "hdf5.h"
 #include <stdio.h>
 #include <matio.h>
 #include <errno.h>
@@ -12,6 +13,177 @@
 
 
 void* load_matrix(const char *filename, const char* matname, int* rows, int* cols)
+{
+    if (has_extension(filename, ".mat"))
+    {
+        return readMATFile(filename, matname, rows, cols);
+    }
+    else if (has_extension(filename, ".hdf5"))
+    {
+        return readHDF5File(filename, matname, rows, cols);
+    }
+
+    return NULL;
+}
+
+
+void *readHDF5File(const char *file_name, const char *dataset_name, int *rows, int *cols) 
+{
+    hid_t file_id, dataset_id, datatype_id, space_id; // IDs for file, dataset, datatype, and dataspace
+    H5T_class_t type_class; // To store the type class (integer, float, etc.)
+    hsize_t dims[2]; // For 2D datasets
+    herr_t status;
+    void *data = NULL;
+
+    // Open the HDF5 file in read-only mode
+    file_id = H5Fopen(file_name, H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) 
+    {
+        fprintf(stderr, "Error: Unable to open file %s\n", file_name);
+        return NULL;
+    }
+
+    // Open the dataset
+    dataset_id = H5Dopen(file_id, dataset_name, H5P_DEFAULT);
+    if (dataset_id < 0) 
+    {
+        fprintf(stderr, "Error: Unable to open dataset %s\n", dataset_name);
+        H5Fclose(file_id);
+        return NULL;
+    }
+
+    // Get the dataspace of the dataset
+    space_id = H5Dget_space(dataset_id);
+    if (space_id < 0) 
+    {
+        fprintf(stderr, "Error: Unable to get dataspace for dataset %s\n", dataset_name);
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return NULL;
+    }
+
+    // Verify that the dataset is 2D
+    int ndims = H5Sget_simple_extent_ndims(space_id);
+    if (ndims != 2) 
+    {
+        fprintf(stderr, "Error: Dataset %s is not 2D\n", dataset_name);
+        H5Sclose(space_id);
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return NULL;
+    }
+
+    // Get the dimensions of the dataset
+    H5Sget_simple_extent_dims(space_id, dims, NULL);
+    printf("Dataset dimensions: %llu x %llu\n", dims[0], dims[1]);
+    *rows = dims[0];
+    *cols = dims[1];
+
+    // Get the datatype of the dataset
+    datatype_id = H5Dget_type(dataset_id);
+    if (datatype_id < 0) 
+    {
+        fprintf(stderr, "Error: Unable to get datatype of dataset %s\n", dataset_name);
+        H5Sclose(space_id);
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return NULL;
+    }
+
+    // Get the class of the datatype (integer, float, etc.)
+    type_class = H5Tget_class(datatype_id);
+
+    // Check if the type is supported (either integer or float)
+    if (type_class == H5T_INTEGER) 
+    {
+        printf("Detected data type: Integer\n");
+        // Allocate memory for the data
+        size_t total_elements = dims[0] * dims[1];
+        data = (int *)malloc(total_elements * sizeof(int));  // Allocate memory for integers
+        if (!data)
+        {
+            fprintf(stderr, "Error allocating memory for int matrix\n");
+            H5Tclose(datatype_id);
+            H5Sclose(space_id);
+            H5Dclose(dataset_id);
+            H5Fclose(file_id);
+            return NULL;
+        }
+
+        // Read the data into the array
+        status = H5Dread(dataset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+        if (status < 0) 
+        {
+            fprintf(stderr, "Error: Unable to read integer dataset %s\n", dataset_name);
+            free(data);
+            H5Tclose(datatype_id);
+            H5Sclose(space_id);
+            H5Dclose(dataset_id);
+            H5Fclose(file_id);
+            return NULL;
+        }
+    } 
+    else if (type_class == H5T_FLOAT) 
+    {
+        printf("Detected data type: Float\n");
+        // Allocate memory for the data
+        size_t total_elements = dims[0] * dims[1];
+        float *temp = (float *)malloc(total_elements * sizeof(float));
+        data = (double *)malloc(total_elements * sizeof(double));
+        if (!temp || !data)
+        {
+            fprintf(stderr, "Error allocating memory for float/double matrix\n");
+            H5Tclose(datatype_id);
+            H5Sclose(space_id);
+            H5Dclose(dataset_id);
+            H5Fclose(file_id);
+            if (temp) free(temp);
+            if (data) free(data);
+            return NULL;
+        }
+
+        // Read the data into the array
+        status = H5Dread(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, temp);
+        if (status < 0) 
+        {
+            fprintf(stderr, "Error: Unable to read float dataset %s\n", dataset_name);
+            free(temp);
+            free(data);
+            H5Tclose(datatype_id);
+            H5Sclose(space_id);
+            H5Dclose(dataset_id);
+            H5Fclose(file_id);
+            return NULL;
+        }
+
+        // Convert from float to double
+        for (size_t i = 0; i < total_elements; i++) 
+        {
+            ((double *)data)[i] = (double)temp[i];
+        }
+
+        free(temp);
+    } 
+    else 
+    {
+        fprintf(stderr, "Error: Unsupported data type. Only integers and floats are supported.\n");
+        H5Tclose(datatype_id);
+        H5Sclose(space_id);
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return NULL;
+    }
+
+    // Clean up
+    H5Tclose(datatype_id);
+    H5Sclose(space_id);
+    H5Dclose(dataset_id);
+    H5Fclose(file_id);
+    return data;
+}
+
+
+void *readMATFile(const char *filename, const char* matname, int* rows, int* cols)
 {
     MATFile *matfp;
     mxArray *matvar;

@@ -14,15 +14,18 @@
                 "-I/opt/OpenBLAS/include",
                 "-I${workspaceFolder}/include",
                 "-I/usr/local/MATLAB/R2024b/extern/include",
+                "-I/usr/lib/x86_64-linux-gnu/hdf5/serial/include",
                 "-L/usr/local/MATLAB/R2024b/bin/glnxa64",
                 "-L/opt/OpenBLAS/lib",
                 "-L/usr/local/MATLAB/R2024b/sys/os/glnxa64",
+                "-L/usr/lib/x86_64-linux-gnu/hdf5/serial",
                 "-lstdc++",
                 "-lopenblas",
                 "-lm",
                 "-lpthread",
                 "-lmat",
-                "-lmx"
+                "-lmx",
+                "-lhdf5"
             ],
             "options": {
                 "cwd": "${fileDirname}"

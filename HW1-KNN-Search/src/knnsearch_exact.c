@@ -330,7 +330,7 @@ int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const
             for (int j = 0; j < K; j++)
             {
                 D[D_OFFSET + i * K + j] = Dall[i * N + j];
-                IDX[D_OFFSET + i * K + j] = IDXall[i * N + j] + 1; // 1-based indexing
+                IDX[D_OFFSET + i * K + j] = IDXall[i * N + j]; // zero-based indexing
             }
         }
     }

@@ -20,7 +20,7 @@ if [[ ! -d "$BUILD_DIR" ]]; then
 fi
 
 # Compile the source file
-gcc -fdiagnostics-color=always "$SOURCE_FILE" ../src/*.c -o "$BUILD_DIR/$EXECUTABLE_NAME" -I/opt/OpenBLAS/include -I../include -I/usr/local/MATLAB/R2024b/extern/include -L/usr/local/MATLAB/R2024b/bin/glnxa64 -L/opt/OpenBLAS/lib -L/usr/local/MATLAB/R2024b/sys/os/glnxa64 -lstdc++ -lopenblas -lm -lpthread -lmat -lmx
+gcc -fdiagnostics-color=always "$SOURCE_FILE" ../src/*.c -o "$BUILD_DIR/$EXECUTABLE_NAME" -I/opt/OpenBLAS/include -I../include -I/usr/local/MATLAB/R2024b/extern/include -I/usr/lib/x86_64-linux-gnu/hdf5/serial/include -L/usr/local/MATLAB/R2024b/bin/glnxa64 -L/opt/OpenBLAS/lib -L/usr/local/MATLAB/R2024b/sys/os/glnxa64 -L/usr/lib/x86_64-linux-gnu/hdf5/serial -lstdc++ -lopenblas -lm -lpthread -lmat -lmx -lhdf5
 if [[ $? -ne 0 ]]; then
     echo "Error: Compilation failed."
     exit 1

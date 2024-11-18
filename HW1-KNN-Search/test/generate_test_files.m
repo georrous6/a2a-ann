@@ -1,5 +1,7 @@
 function generate_test_files()
 
+    rng(0); % Add random seed for reproducibility
+
     % some edge case tests
     C = 7.2;
     Q = 3.7;
@@ -13,7 +15,7 @@ function generate_test_files()
     [test_IDX, test_D] = knnsearch(C, Q, 'K', K, 'SortIndices', true);
     
     % Convert IDX to int32 before saving
-    test_IDX = int32(test_IDX);
+    test_IDX = int32(test_IDX - 1);
     
     test_name = "Test 1";
     save('test_files/test01.mat', 'C', 'Q', 'K', 'test_D', 'test_IDX', 'test_name');
@@ -25,7 +27,7 @@ function generate_test_files()
     [test_IDX, test_D] = knnsearch(C, Q, 'K', K, 'SortIndices', true);
     
     % Convert IDX to int32 before saving
-    test_IDX = int32(test_IDX);
+    test_IDX = int32(test_IDX - 1);
     
     test_name = "Test 2";
     save('test_files/test02.mat', 'C', 'Q', 'K', 'test_D', 'test_IDX', 'test_name');
@@ -43,7 +45,7 @@ function generate_test_files()
         [test_IDX, test_D] = knnsearch(C, Q, 'K', K, 'SortIndices', true);
     
         % Convert IDX to int32 before saving
-        test_IDX = int32(test_IDX);
+        test_IDX = int32(test_IDX - 1);
         test_name = sprintf("Test %d", i);
         if i < 10
             save(sprintf('test_files/test0%d.mat', i), 'C', 'Q', 'K', 'test_D', 'test_IDX', 'test_name');
