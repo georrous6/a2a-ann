@@ -1,25 +1,40 @@
+%% Generate 2D test file
+
+rng(10); % Add random seed for reproducibility
+
+Q = rand(100000, 2);
+K = int32(3);
+C = Q;
+
+[IDX, ~] = knnsearch(Q, Q, 'K', K, 'SortIndices', true);
+
+% Convert IDX to int32 before saving
+IDX = int32(IDX);
+
+save('approx_tests/test01.mat', 'C', 'Q', 'K', 'IDX');
+
 %% Plot 2D points
 clc, clearvars, close all;
 
 % Load execution times from .mat files
 my_data = load('approx_tests/my_output.mat', 'IDX');
-matlab_data = load('approx_tests/test01.mat', 'IDX', 'Q', 'C');
+matlab_data = load('approx_tests/test01.mat', 'IDX', 'Q');
 
-IDX_approx = my_data.IDX;
+IDX_approx = my_data.IDX + 1;
 IDX = matlab_data.IDX;
 Q = matlab_data.Q;
-C = matlab_data.C;
 
+p=1;
 
 figure;
-scatter(C(:,1), C(:,2), 'b', 'o', 'DisplayName', 'Coprus');
+scatter(Q(:,1), Q(:,2), 'b', 'o', 'DisplayName', 'Coprus');
 hold on;
-approx_knn = C(IDX_approx(:), :);
+approx_knn = Q(IDX_approx(p,:), :);
 scatter(approx_knn(:,1), approx_knn(:,2), 'r', 'o', 'DisplayName', 'Approximate neighbors');
-scatter(Q(:,1), Q(:,2), 'g', '+', 'DisplayName', 'Queries');
+scatter(Q(p,1), Q(p,2), 'g', '+', 'DisplayName', 'Queries');
 
 % Plot the points in C specified by IDX
-knn = C(IDX(:), :); % Flatten IDX and get the exact k-nearest neighbors
+knn = Q(IDX(p,:), :); % Flatten IDX and get the exact k-nearest neighbors
 scatter(knn(:,1), knn(:,2), 'y', '*', 'DisplayName', 'Exact nearest neighbors');
 hold off;
 
