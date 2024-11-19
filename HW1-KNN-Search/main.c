@@ -34,15 +34,6 @@ int main(int argc, char *argv[])
         goto cleanup;
     }
 
-    if (opts.approx == 1)
-    {
-        *K = (*K > QM) ? QM : *K;
-    }
-    else
-    {
-        *K = (*K > CM) ? CM : *K;  // if K is greater than the corpus size, set K to the coprus size
-    }
-
     if (opts.verbose == 1)
     {
         printf("Input Filename: %s\n", filename);
