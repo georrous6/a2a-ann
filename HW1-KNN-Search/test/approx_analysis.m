@@ -1,8 +1,9 @@
 %% Generate 2D test file
+clc, clearvars, close all;
 
-rng(10); % Add random seed for reproducibility
+% rng(10); % Add random seed for reproducibility
 
-Q = rand(100000, 2);
+Q = rand(1000000, 2);
 K = int32(3);
 C = Q;
 
@@ -24,18 +25,18 @@ IDX_approx = my_data.IDX + 1;
 IDX = matlab_data.IDX;
 Q = matlab_data.Q;
 
-p=1;
+p=randi(size(Q, 1));
 
 figure;
 scatter(Q(:,1), Q(:,2), 'b', 'o', 'DisplayName', 'Coprus');
 hold on;
 approx_knn = Q(IDX_approx(p,:), :);
 scatter(approx_knn(:,1), approx_knn(:,2), 'r', 'o', 'DisplayName', 'Approximate neighbors');
-scatter(Q(p,1), Q(p,2), 'g', '+', 'DisplayName', 'Queries');
 
 % Plot the points in C specified by IDX
 knn = Q(IDX(p,:), :); % Flatten IDX and get the exact k-nearest neighbors
 scatter(knn(:,1), knn(:,2), 'y', '*', 'DisplayName', 'Exact nearest neighbors');
+scatter(Q(p,1), Q(p,2), 'g', '+', 'DisplayName', 'Queries');
 hold off;
 
 % Add legend and labels

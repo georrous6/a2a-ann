@@ -50,11 +50,10 @@ void swap_points(double* Q, int *mp, const int L, const int idx1, const int idx2
 }
 
 
-int ann_recursive(double *Q, int *mp, int *IDX, double *D, const int K, const int index, const int num_points, const int L, const int LEAF_SIZE, const int sorted) 
+int ann_recursive(double *Q, int *mp, int *IDX, double *D, const int K, const int index, const int num_points, const int L, const int LEAF_SIZE) 
 {
     if (num_points <= LEAF_SIZE || num_points == 1 || num_points <= K)
     {
-        printf("Reached leaf at index %d with %d elements. Sorting...\n", index, num_points);
         // Reached a leaf. Find the exact k-nearest neighbors on this region
         int *IDXall = (int *)malloc(sizeof(int) * num_points * num_points);
         if (!IDXall)
@@ -71,8 +70,7 @@ int ann_recursive(double *Q, int *mp, int *IDX, double *D, const int K, const in
             }
         }
 
-        const int kk = K > num_points ? num_points : K;
-        if (knn(Q + index * L, Q + index * L, IDX + index * K, IDXall, D, num_points, num_points, L, kk, sorted))
+        if (knn(Q + index * L, Q + index * L, IDX + index * K, IDXall, D + index * K, num_points, num_points, L, K))
         {
             free(IDXall);
             return EXIT_FAILURE;
@@ -113,96 +111,70 @@ int ann_recursive(double *Q, int *mp, int *IDX, double *D, const int K, const in
         left_idx++;
         right_idx--;
     }
-
-    // node->left = build_tree(tree, points, left_idx, L, LEAF_SIZE);
-    // node->right = build_tree(tree, points + left_idx * L, num_points - left_idx, L, LEAF_SIZE);
     
     const int num_points_left = left_idx - index;
-    const int num_points_right = num_points - left_idx;
+    const int num_points_right = num_points + index - left_idx;
     if (num_points_left > 0)
     {
-        printf("Creating left leaf at index %d with %d elements\n", left_idx, num_points_left);
-        ann_recursive(Q, mp, IDX, D, K, index, num_points_left, L, LEAF_SIZE, sorted);
+        ann_recursive(Q, mp, IDX, D, K, index, num_points_left, L, LEAF_SIZE);
     }
     if (num_points_right > 0)
     {
-        printf("Creating right leaf at index %d with %d elements\n", right_idx, num_points_right);
-        ann_recursive(Q, mp, IDX, D, K, left_idx, num_points_right, L, LEAF_SIZE, sorted);
+        ann_recursive(Q, mp, IDX, D, K, left_idx, num_points_right, L, LEAF_SIZE);
     }
 
-    // double *temp = NULL;
-    // // Merge solutions
-    // if (num_points_left > 0 && num_points_right > 0)
-    // {
-    //     temp = (double *)malloc(sizeof(double) * (num_points_left + num_points_right));
-    //     if (!temp)
-    //     {
-    //         fprintf(stderr, "Error allocating memory\n");
-    //         return EXIT_FAILURE;
-    //     }
-
-    //     for (int i = 0; i < num_points_left; i++)
-    // }
-
-    // if (temp) free(temp);
     return EXIT_SUCCESS;
 }
 
 
-int knnsearch_approx(const double* Q, int* IDX, double* D, const int M, const int L, const int K, const int sorted, int nthreads)
+int knnsearch_approx(double* Q, int* IDX, double* D, const int M, const int L, const int K, const int sorted, int nthreads)
 {
-    // Mapping vector to retrieve the initial Q matrix
+    // Mapping vector to retrieve the initial order of points in Q
     int *mp = (int *)malloc(sizeof(int) * M);
+    int *temp_IDX = (int *)malloc(sizeof(int) * M * K);
+    double *temp_D = (double *)malloc(sizeof(double) * M * K);
+    int status = EXIT_FAILURE;
 
-    if (!mp)
+    if (!mp || !temp_IDX || !temp_D)
     {
-        fprintf(stderr, "Error allocating memory for mapping vector\n");
-        return EXIT_FAILURE;
+        fprintf(stderr, "Error allocating memory\n");
+        goto cleanup;
     }
-
-    double *copy_Q = (double *)malloc(sizeof(double) * M * L);
-    if (!copy_Q)
-    {
-        fprintf(stderr, "Error allocating memory for the copy of the coprus/queries matrix\n");
-        return EXIT_FAILURE;    
-    }
-
-    memcpy(copy_Q, Q, sizeof(double) * M * L);
 
     for (int i = 0; i < M ; i++) mp[i] = i;
-    if (ann_recursive(copy_Q, mp, IDX, D, K, 0, M, L, MAX_LEAF_SIZE, sorted))
+
+    if (ann_recursive(Q, mp, temp_IDX, temp_D, K, 0, M, L, MAX_LEAF_SIZE))
     {
-        free(mp);
-        free(copy_Q);
-        return EXIT_FAILURE;
+        goto cleanup;
     }
 
-    double temp_D;
-    int temp_IDX;
+    // Retrieve the original order of the data
     for (int i = 0; i < M; i++)
     {
-        if (i != mp[i])
+        memcpy(D + mp[i] * K, temp_D + i * K, K * sizeof(double));
+        memcpy(IDX + mp[i] * K, temp_IDX + i * K, K * sizeof(int));
+        if (sorted)
         {
-            for (int j = 0; j < K; j++)
-            {
-                temp_D = D[i * K + j];
-                D[i * K + j] = D[mp[i] * K + j];
-                D[mp[i] * K + j] = temp_D;
-
-                temp_IDX = IDX[i * K + j];
-                IDX[i * K + j] = IDX[mp[i] * K + j];
-                IDX[mp[i] * K + j] = temp_IDX;
-            }
+            qsort_(D + mp[i] * K, IDX + mp[i] * K, 0, K - 1);
         }
     }
 
-    free(copy_Q);
-    free(mp);
-    return EXIT_SUCCESS;
+    status = EXIT_SUCCESS;
+
+cleanup:
+    if (mp) free(mp);
+    if (temp_D) free(temp_D);
+    if (temp_IDX) free(temp_IDX);
+    return status;
 }
 
-int knn(const double* Q, const double* C, int *IDX, int* IDXall, double* D, const int M, const int N, const int L, const int K, const int sorted)
+int knn(const double* Q, const double* C, int *IDX, int* IDXall, double* D, const int M, const int N, const int L, const int K)
 {
+    if (K > N)  // Nothing to do
+    {
+        return EXIT_SUCCESS;
+    }
+
     double *Dall = NULL, *sqrmag_Q = NULL, *sqrmag_C = NULL;
     int status = EXIT_FAILURE;
 
@@ -253,12 +225,6 @@ int knn(const double* Q, const double* C, int *IDX, int* IDXall, double* D, cons
         {
             D[i * K + j] = sqrt(Dall[i * N + j]);
             IDX[i * K + j] = IDXall[i * N + j]; // zero-based indexing
-        }
-
-        // sort each row of the distance matrix
-        if (sorted)
-        {
-            qsort_(D + i * K, IDX + i * K, 0, K - 1);
         }
     }
 

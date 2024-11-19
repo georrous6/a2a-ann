@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 
-int knnsearch(const double* Q, const double* C, int** IDX, double** D, const int M, const int N, const int L, const int K, const int sorted, int nthreads, const int approx)
+int knnsearch(double* Q, const double* C, int** IDX, double** D, const int M, const int N, const int L, const int K, const int sorted, int nthreads, const int approx)
 {
     *D = (double *)malloc(M * K * sizeof(double));
     if (!(*D))

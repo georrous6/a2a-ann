@@ -1,7 +1,7 @@
 #ifndef KNNSEARCH_APPROX_H
 #define KNNSEARCH_APPROX_H
 
-#define MAX_LEAF_SIZE 1000  // maximum number of points on a leaf
+#define MAX_LEAF_SIZE 1000 // maximum number of points on a leaf
 
 
 /**
@@ -39,7 +39,7 @@ void swap_points(double* Q, int* IDX, const int L, const int idx1, const int idx
  * @param LEAF_SIZE the maximum number of points to a leaf node
  * @return a leaf or an intermediate node or NULL if an error occured
  */
-int ann_recursive(double *C, int *mp,  int *IDX, double *D, const int K, const int index, const int num_points, const int L, const int LEAF_SIZE, const int sorted);
+int ann_recursive(double *C, int *mp,  int *IDX, double *D, const int K, const int index, const int num_points, const int L, const int LEAF_SIZE);
 
 
 /**
@@ -58,7 +58,7 @@ int ann_recursive(double *C, int *mp,  int *IDX, double *D, const int K, const i
  * @note The user is responsible to pass IDX and D matrices with the appropriate
  * dimensions
  */
-int knnsearch_approx(const double* Q, int* IDX, double* D, const int M, const int L, const int K, const int sorted, int nthreads);
+int knnsearch_approx(double* Q, int* IDX, double* D, const int M, const int L, const int K, const int sorted, int nthreads);
 
 
 /**
@@ -73,13 +73,12 @@ int knnsearch_approx(const double* Q, int* IDX, double* D, const int M, const in
  * @param N the number of rows of C
  * @param L the number of columns of Q and C
  * @param K the number of nearest neighbors
- * @param sorted if set to a non-negative value outputs 
- * the distances in ascending order
  * @return 0 on succesfull exit and 1 if an error occured
  * @note The function assumes that Q and C have the same number of columns.
  * @note The function assumes that the IDXall matrix is already initialized 
  * with zero-based indexes.
+ * @note The function does not check if K is greater than the corpus size
  */
-int knn(const double* Q, const double* C, int *IDX, int* IDXall, double* D, const int M, const int N, const int L, const int K, const int sorted);
+int knn(const double* Q, const double* C, int *IDX, int* IDXall, double* D, const int M, const int N, const int L, const int K);
 
 #endif
