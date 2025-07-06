@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "ioutil.h"
-#include "knnsearch_exact.h"
+#include "knnsearch.h"
 
 
 // Function to set terminal color

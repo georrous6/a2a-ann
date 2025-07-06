@@ -2,11 +2,11 @@ cmake_minimum_required(VERSION 3.10)
 project(annlib C)
 
 # Allow user to specify MATLAB root folder (optional)
-set(MATLAB_ROOT "" CACHE PATH "Root directory of MATLAB installation (required for TESTS configuration)")
+set(MATLAB_ROOT "" CACHE PATH "Root directory of MATLAB installation (required for TEST and BENCHMARK configurations)")
 
 # User build configuration selection
-set(BUILD_CONFIGURATION "LIBRARY" CACHE STRING "Build configuration: LIBRARY, TESTS, or BENCHMARKS")
-set_property(CACHE BUILD_CONFIGURATION PROPERTY STRINGS LIBRARY TESTS BENCHMARKS)
+set(BUILD_CONFIGURATION "LIBRARY" CACHE STRING "Build configuration: LIBRARY, TEST, or BENCHMARK")
+set_property(CACHE BUILD_CONFIGURATION PROPERTY STRINGS LIBRARY TEST BENCHMARK)
 
 message(STATUS "Build configuration: ${BUILD_CONFIGURATION}")
 
@@ -28,11 +28,10 @@ target_link_libraries(annlib
         ${OpenBLAS_LIBRARIES}
 )
 
-# Build configuration-specific targets
-if(BUILD_CONFIGURATION STREQUAL "TESTS")
+if(BUILD_CONFIGURATION STREQUAL "TEST" OR BUILD_CONFIGURATION STREQUAL "BENCHMARK")
 
     if(NOT MATLAB_ROOT)
-        message(FATAL_ERROR "MATLAB_ROOT must be specified for TESTS configuration.")
+        message(FATAL_ERROR "MATLAB_ROOT must be specified for TEST and BENCHMARK configurations.")
     endif()
 
     # MATLAB includes and libraries
@@ -43,19 +42,26 @@ if(BUILD_CONFIGURATION STREQUAL "TESTS")
     set(MATLAB_LIB_MX "${MATLAB_BIN_DIR}/libmx.so")
     set(MATLAB_LIB_MEX "${MATLAB_BIN_DIR}/libmex.so")
 
+    # Find HDF5 in both test and benchmark configurations
+    find_package(HDF5 REQUIRED COMPONENTS C)
+
+endif()
+
+if(BUILD_CONFIGURATION STREQUAL "TEST")
+
     # Test sources
     file(GLOB TEST_SOURCES 
         "${PROJECT_SOURCE_DIR}/test/*.c" 
         "${PROJECT_SOURCE_DIR}/util/*.c"
     )
 
-    # Create test executable
     add_executable(tests
         ${TEST_SOURCES}
     )
     target_include_directories(tests
         PRIVATE
             "${MATLAB_INCLUDE_DIR}"
+            ${HDF5_INCLUDE_DIRS}
             "${PROJECT_SOURCE_DIR}/test"
             "${PROJECT_SOURCE_DIR}/include"
             "${PROJECT_SOURCE_DIR}/util"
@@ -66,11 +72,10 @@ if(BUILD_CONFIGURATION STREQUAL "TESTS")
             ${MATLAB_LIB_MAT}
             ${MATLAB_LIB_MX}
             ${MATLAB_LIB_MEX}
+            ${HDF5_LIBRARIES}
     )
 
-elseif(BUILD_CONFIGURATION STREQUAL "BENCHMARKS")
-
-    find_package(HDF5 REQUIRED COMPONENTS C)
+elseif(BUILD_CONFIGURATION STREQUAL "BENCHMARK")
 
     # Benchmark sources
     file(GLOB BENCHMARK_SOURCES 
@@ -78,12 +83,12 @@ elseif(BUILD_CONFIGURATION STREQUAL "BENCHMARKS")
         "${PROJECT_SOURCE_DIR}/util/*.c"
     )
 
-    # Create benchmark executable
     add_executable(benchmarks
         ${BENCHMARK_SOURCES}
     )
     target_include_directories(benchmarks
         PRIVATE
+            "${MATLAB_INCLUDE_DIR}"
             ${HDF5_INCLUDE_DIRS}
             "${PROJECT_SOURCE_DIR}/benchmark"
             "${PROJECT_SOURCE_DIR}/include"
@@ -92,6 +97,9 @@ elseif(BUILD_CONFIGURATION STREQUAL "BENCHMARKS")
     target_link_libraries(benchmarks
         PRIVATE
             annlib
+            ${MATLAB_LIB_MAT}
+            ${MATLAB_LIB_MX}
+            ${MATLAB_LIB_MEX}
             ${HDF5_LIBRARIES}
     )
 

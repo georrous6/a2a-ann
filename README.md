@@ -14,8 +14,8 @@ algorithm using **pthreads** for scalable performance on multicore systems.
 
 - **CMake** >= 3.10
 - **OpenBLAS**
-- **MATLAB** (only for `TESTS` configuration)
-- **HDF5** (only for `BENCHMARKS` configuration)
+- **MATLAB** (only for `TEST` and `BENCHMARK` configuration)
+- **HDF5** (only for `TEST` and `BENCHMARK` configuration)
 
 ---
 
@@ -26,8 +26,8 @@ The build process supports three mutually exclusive configurations:
 | Configuration | Dependencies |
 |---------------|--------------|
 | `LIBRARY` (default) | OpenBLAS |
-| `TESTS` | OpenBLAS + MATLAB |
-| `BENCHMARKS` | OpenBLAS + HDF5 |
+| `TEST` | OpenBLAS + MATLAB + HDF5 |
+| `BENCHMARK` | OpenBLAS + MATLAB + HDF5 |
 
 The configuration is selected via the `BUILD_CONFIGURATION`.
 According to your preffered configuration run:
@@ -40,12 +40,12 @@ cmake --build build
 
 **Library + tests:**
 ```bash
-cmake -S . -B build -DBUILD_CONFIGURATION=TESTS -DMATLAB_ROOT=/path/to/MATLAB/R2024b
+cmake -S . -B build -DBUILD_CONFIGURATION=TEST -DMATLAB_ROOT=/path/to/MATLAB/R2024b
 cmake --build build
 ```
 
 **Library + benchmarks:**
 ```bash
-cmake -S . -B build -DBUILD_CONFIGURATION=BENCHMARKS
+cmake -S . -B build -DBUILD_CONFIGURATION=BENCHMARK -DMATLAB_ROOT=/path/to/MATLAB/R2024b
 cmake --build build
 ```

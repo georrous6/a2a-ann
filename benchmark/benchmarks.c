@@ -3,8 +3,7 @@
 #include <math.h>
 #include <sys/time.h>
 #include "ioutil.h"
-#include "knnsearch_exact.h"
-#include "knnsearch_approx.h"
+#include "knnsearch.h"
 
 
 // Function to set terminal color
