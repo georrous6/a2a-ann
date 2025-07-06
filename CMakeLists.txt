@@ -1,55 +1,100 @@
 cmake_minimum_required(VERSION 3.10)
-project(my_c_library C)
+project(annlib C)
 
-# Allow user to specify MATLAB root folder (e.g., /usr/local/MATLAB/R2024b)
-set(MATLAB_ROOT "" CACHE PATH "Root directory of MATLAB installation")
+# Allow user to specify MATLAB root folder (optional)
+set(MATLAB_ROOT "" CACHE PATH "Root directory of MATLAB installation (required for TESTS configuration)")
 
-if(NOT MATLAB_ROOT)
-    message(FATAL_ERROR "Please specify MATLAB_ROOT path to your MATLAB installation")
-endif()
+# User build configuration selection
+set(BUILD_CONFIGURATION "LIBRARY" CACHE STRING "Build configuration: LIBRARY, TESTS, or BENCHMARKS")
+set_property(CACHE BUILD_CONFIGURATION PROPERTY STRINGS LIBRARY TESTS BENCHMARKS)
 
-# Construct include and library directories based on MATLAB_ROOT
-set(MATLAB_INCLUDE_DIR "${MATLAB_ROOT}/extern/include")
-set(MATLAB_BIN_DIR "${MATLAB_ROOT}/bin/${CMAKE_SYSTEM_PROCESSOR}")  # e.g., glnxa64, win64, etc.
+message(STATUS "Build configuration: ${BUILD_CONFIGURATION}")
 
-# Find all source files recursively
+# Always find OpenBLAS
+find_package(OpenBLAS REQUIRED)
+
+# Find all core library sources
 file(GLOB_RECURSE SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 
-# Create static library target
-add_library(my_c_library ${SRC_FILES})
-
-# Include MATLAB headers
-target_include_directories(my_c_library 
-    PUBLIC 
-        "${MATLAB_INCLUDE_DIR}" 
-        "${CMAKE_CURRENT_SOURCE_DIR}/include"
-)
-
-# Link MATLAB libraries
-set(MATLAB_LIB_MAT "${MATLAB_BIN_DIR}/libmat.so")
-set(MATLAB_LIB_MX "${MATLAB_BIN_DIR}/libmx.so")
-set(MATLAB_LIB_MEX "${MATLAB_BIN_DIR}/libmex.so")
-
-target_link_libraries(my_c_library
-    PUBLIC
-        ${MATLAB_LIB_MAT}
-        ${MATLAB_LIB_MX}
-        ${MATLAB_LIB_MEX}
-)
-
-
-# Find OpenBLAS and HDF5 as before
-find_package(OpenBLAS REQUIRED)
-find_package(HDF5 REQUIRED COMPONENTS C)
-
-target_include_directories(my_c_library
+# Create the core library target
+add_library(annlib ${SRC_FILES})
+target_include_directories(annlib
     PUBLIC
         ${OpenBLAS_INCLUDE_DIRS}
-        ${HDF5_INCLUDE_DIRS}
+        "${PROJECT_SOURCE_DIR}/include"
 )
-
-target_link_libraries(my_c_library
+target_link_libraries(annlib
     PUBLIC
         ${OpenBLAS_LIBRARIES}
-        ${HDF5_LIBRARIES}
 )
+
+# Build configuration-specific targets
+if(BUILD_CONFIGURATION STREQUAL "TESTS")
+
+    if(NOT MATLAB_ROOT)
+        message(FATAL_ERROR "MATLAB_ROOT must be specified for TESTS configuration.")
+    endif()
+
+    # MATLAB includes and libraries
+    set(MATLAB_INCLUDE_DIR "${MATLAB_ROOT}/extern/include")
+    set(MATLAB_BIN_DIR "${MATLAB_ROOT}/bin/${CMAKE_SYSTEM_PROCESSOR}")
+
+    set(MATLAB_LIB_MAT "${MATLAB_BIN_DIR}/libmat.so")
+    set(MATLAB_LIB_MX "${MATLAB_BIN_DIR}/libmx.so")
+    set(MATLAB_LIB_MEX "${MATLAB_BIN_DIR}/libmex.so")
+
+    # Test sources
+    file(GLOB TEST_SOURCES 
+        "${PROJECT_SOURCE_DIR}/test/*.c" 
+        "${PROJECT_SOURCE_DIR}/util/*.c"
+    )
+
+    # Create test executable
+    add_executable(tests
+        ${TEST_SOURCES}
+    )
+    target_include_directories(tests
+        PRIVATE
+            "${MATLAB_INCLUDE_DIR}"
+            "${PROJECT_SOURCE_DIR}/test"
+            "${PROJECT_SOURCE_DIR}/include"
+            "${PROJECT_SOURCE_DIR}/util"
+    )
+    target_link_libraries(tests
+        PRIVATE
+            annlib
+            ${MATLAB_LIB_MAT}
+            ${MATLAB_LIB_MX}
+            ${MATLAB_LIB_MEX}
+    )
+
+elseif(BUILD_CONFIGURATION STREQUAL "BENCHMARKS")
+
+    find_package(HDF5 REQUIRED COMPONENTS C)
+
+    # Benchmark sources
+    file(GLOB BENCHMARK_SOURCES 
+        "${PROJECT_SOURCE_DIR}/benchmark/*.c" 
+        "${PROJECT_SOURCE_DIR}/util/*.c"
+    )
+
+    # Create benchmark executable
+    add_executable(benchmarks
+        ${BENCHMARK_SOURCES}
+    )
+    target_include_directories(benchmarks
+        PRIVATE
+            ${HDF5_INCLUDE_DIRS}
+            "${PROJECT_SOURCE_DIR}/benchmark"
+            "${PROJECT_SOURCE_DIR}/include"
+            "${PROJECT_SOURCE_DIR}/util"
+    )
+    target_link_libraries(benchmarks
+        PRIVATE
+            annlib
+            ${HDF5_LIBRARIES}
+    )
+
+else() # LIBRARY
+    message(STATUS "Building library only. No tests or benchmarks.")
+endif()

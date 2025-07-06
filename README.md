@@ -1,29 +1,51 @@
-## To compile the target knnsearch_exact.c
+# All2All-ANN
 
-gcc -fdiagnostics-color=always -g main.c src/*.c -o build/knnsearch -I/opt/OpenBLAS/include -Iinclude -I/usr/local/MATLAB/R2024b/extern/include -L/usr/local/MATLAB/R2024b/bin/glnxa64 -L/opt/OpenBLAS/lib -L/usr/local/MATLAB/R2024b/sys/os/glnxa64 -lstdc++ -lopenblas -lm -lpthread -lmat -lmx
+A high-performance C library for solving the **All-to-All Approximate Nearest Neighbors** 
+problem with parallelization support. The library leverages **POSIX Threads (pthreads)**, 
+**OpenMP**, and **OpenCilk** to efficiently compute approximate nearest neighbors across 
+large datasets.  
 
-Open your shell's configuration file:
-vim ~/.bashrc
+Additionally, it provides a parallelized implementation of the **k-Nearest Neighbors** 
+algorithm using **pthreads** for scalable performance on multicore systems.
 
-and add the following lines:
-export LD_LIBRARY_PATH=/opt/OpenBLAS/lib:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/usr/local/MATLAB/R2024b/bin/glnxa64:$LD_LIBRARY_PATH
+---
 
+## Requirements
 
-## To run the target knnsearch_exact with valgrind
+- **CMake** >= 3.10
+- **OpenBLAS**
+- **MATLAB** (only for `TESTS` configuration)
+- **HDF5** (only for `BENCHMARKS` configuration)
 
-cd build
+---
 
-valgrind --leak-check=full --track-origins=yes --show-leak-kinds=all --log-file=memory_usage.log ./knnsearch ../test/validity_tests/test51.mat C Q 10
+## Build with CMake
 
-## To run the tests
+The build process supports three mutually exclusive configurations:
 
-cd test
+| Configuration | Dependencies |
+|---------------|--------------|
+| `LIBRARY` (default) | OpenBLAS |
+| `TESTS` | OpenBLAS + MATLAB |
+| `BENCHMARKS` | OpenBLAS + HDF5 |
 
-chmod +x knn_tests.sh
+The configuration is selected via the `BUILD_CONFIGURATION`.
+According to your preffered configuration run:
 
-./knn_tests path/to/executable
+**Library only:**
+```bash
+cmake -S . -B build -DBUILD_CONFIGURATION=LIBRARY
+cmake --build build
+```
 
-### or
+**Library + tests:**
+```bash
+cmake -S . -B build -DBUILD_CONFIGURATION=TESTS -DMATLAB_ROOT=/path/to/MATLAB/R2024b
+cmake --build build
+```
 
-gcc -fdiagnostics-color=always -g validity_tests.c src/*.c -o build/validity_tests -I/opt/OpenBLAS/include -Iinclude -I/usr/local/MATLAB/R2024b/extern/include -L/usr/local/MATLAB/R2024b/bin/glnxa64 -L/opt/OpenBLAS/lib -L/usr/local/MATLAB/R2024b/sys/os/glnxa64 -lstdc++ -lopenblas -lm -lpthread -lmat -lmx
+**Library + benchmarks:**
+```bash
+cmake -S . -B build -DBUILD_CONFIGURATION=BENCHMARKS
+cmake --build build
+```
