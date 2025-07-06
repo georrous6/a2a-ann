@@ -160,7 +160,7 @@ void knnTaskExec(const knnTask *task)
 {
     struct timeval tstart, tend;
     gettimeofday(&tstart, NULL);
-    printf("Thread executes task with %d queries...\n", task->QUERIES_NUM);
+    //printf("Thread executes task with %d queries...\n", task->QUERIES_NUM);
     double *Dall = task->Dall;
     int *IDXall = task->IDXall;
     const double *sqrmag_C = task->sqrmag_C;
@@ -193,7 +193,7 @@ void knnTaskExec(const knnTask *task)
     }
 
     gettimeofday(&tend, NULL);
-    printf("Thread finished task with %d queries. Started: %ld sec and %ld usec, Finished: %ld sec and %ld usec\n", task->QUERIES_NUM, tstart.tv_sec, tstart.tv_usec, tend.tv_sec, tend.tv_usec);
+    //printf("Thread finished task with %d queries. Started: %ld sec and %ld usec, Finished: %ld sec and %ld usec\n", task->QUERIES_NUM, tstart.tv_sec, tstart.tv_usec, tend.tv_sec, tend.tv_usec);
 }
 
 
@@ -215,7 +215,7 @@ int knnsearch(const double* Q, const double* C, int* IDX, double* D, const int M
     // maximum number of queries that can be proccessed
     if (alloc_memory(&Dall, &IDXall, &sqrmag_Q, &sqrmag_C, M, N, &MAX_QUERIES_MEMORY))
     {
-        fprintf(stderr, "knnsearch_exact: Error allocating memory\n");
+        fprintf(stderr, "knnsearch: Error allocating memory\n");
         return status;
     }
 
@@ -304,7 +304,7 @@ int knnsearch(const double* Q, const double* C, int* IDX, double* D, const int M
         }
         else  // multithreading
         {
-            printf("\nThreads: %d\n", nthreads);
+            //printf("\nThreads: %d\n", nthreads);
             // Create the tasks and add them to the queue
             if (QUERIES_NUM / nthreads == 0)  // create only one task
             {

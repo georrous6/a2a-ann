@@ -36,11 +36,11 @@ if(BUILD_CONFIGURATION STREQUAL "TEST" OR BUILD_CONFIGURATION STREQUAL "BENCHMAR
 
     # MATLAB includes and libraries
     set(MATLAB_INCLUDE_DIR "${MATLAB_ROOT}/extern/include")
-    set(MATLAB_BIN_DIR "${MATLAB_ROOT}/bin/${CMAKE_SYSTEM_PROCESSOR}")
+    set(MATLAB_LIB_DIR "${MATLAB_ROOT}/bin/glnxa64")
 
-    set(MATLAB_LIB_MAT "${MATLAB_BIN_DIR}/libmat.so")
-    set(MATLAB_LIB_MX "${MATLAB_BIN_DIR}/libmx.so")
-    set(MATLAB_LIB_MEX "${MATLAB_BIN_DIR}/libmex.so")
+    set(MATLAB_LIB_MAT "${MATLAB_LIB_DIR}/libmat.so")
+    set(MATLAB_LIB_MX "${MATLAB_LIB_DIR}/libmx.so")
+    set(MATLAB_LIB_MEX "${MATLAB_LIB_DIR}/libmex.so")
 
     # Find HDF5 in both test and benchmark configurations
     find_package(HDF5 REQUIRED COMPONENTS C)

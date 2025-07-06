@@ -1,35 +1,21 @@
 #!/bin/bash
 
 # Define variables
-SOURCE_FILE="knnsearch_exact_tests.c"
-BUILD_DIR="../build"
-EXECUTABLE_NAME="knnsearch_exact_tests"
 SCRIPT_DIR=$(dirname "$0")  # Directory where this script is located
 TEST_DIR="$SCRIPT_DIR/test_files"  # Directory to look for test files
+EXECUTABLE_PATH="$SCRIPT_DIR/../build/tests"  # Path th the executable
 
-# Check if the source file exists
-if [[ ! -f "$SOURCE_FILE" ]]; then
-    echo "Error: Source file '$SOURCE_FILE' not found."
-    exit 1
-fi
-
-# Ensure the build directory exists
-if [[ ! -d "$BUILD_DIR" ]]; then
-    echo "Build directory not found. Creating '$BUILD_DIR'..."
-    mkdir -p "$BUILD_DIR"
-fi
-
-# Compile the source file
-gcc -fdiagnostics-color=always "$SOURCE_FILE" ../src/*.c -o "$BUILD_DIR/$EXECUTABLE_NAME" -I/opt/OpenBLAS/include -I../include -I/usr/local/MATLAB/R2024b/extern/include -I/usr/lib/x86_64-linux-gnu/hdf5/serial/include -L/usr/local/MATLAB/R2024b/bin/glnxa64 -L/opt/OpenBLAS/lib -L/usr/local/MATLAB/R2024b/sys/os/glnxa64 -L/usr/lib/x86_64-linux-gnu/hdf5/serial -lstdc++ -lopenblas -lm -lpthread -lmat -lmx -lhdf5 -lcurl
-if [[ $? -ne 0 ]]; then
-    echo "Error: Compilation failed."
+# Check if the executable file exists inside the build directory
+if [ ! -f "$EXECUTABLE_PATH" ]; then
+    echo "Error: Executable '$EXECUTABLE_PATH' not found."
+    echo "Please build the project first using 'make'."
     exit 1
 fi
 
 # Check if the test directory exists or is empty
 if [ ! -d "$TEST_DIR" ] || [ -z "$(ls -A "$TEST_DIR" 2>/dev/null)" ]; then
     echo "Generating test files..."
-    matlab -batch "generate_test_files; exit;"
+    matlab -batch "generate_tests('$TEST_DIR'); exit;"
     MATLAB_STATUS=$?
     
     if [ "$MATLAB_STATUS" -ne 0 ]; then
@@ -47,7 +33,7 @@ if [ ! -d "$TEST_DIR" ] || [ -z "$(ls -A "$TEST_DIR" 2>/dev/null)" ]; then
 fi
 
 # Run the executable
-"$BUILD_DIR/$EXECUTABLE_NAME" "$TEST_DIR"
+"$EXECUTABLE_PATH" "$TEST_DIR"
 if [[ $? -ne 0 ]]; then
     echo "Error: Execution of the program failed."
     exit 1
