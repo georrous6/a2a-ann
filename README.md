@@ -43,9 +43,21 @@ cmake --build build
 cmake -S . -B build -DBUILD_CONFIGURATION=TEST -DMATLAB_ROOT=/path/to/MATLAB/R2024b
 cmake --build build
 ```
+To run the tests type
+```bash
+cd test
+chmod +x run_tests.sh
+./run_tests.sh
+```
 
 **Library + benchmarks:**
 ```bash
 cmake -S . -B build -DBUILD_CONFIGURATION=BENCHMARK -DMATLAB_ROOT=/path/to/MATLAB/R2024b
 cmake --build build
+```
+To run the benchmarks type
+```bash
+cd benchmark
+chmod +x run_benchmarks.sh
+./run_benchmarks.sh
 ```
