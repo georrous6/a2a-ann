@@ -1,4 +1,4 @@
-# All2All-ANN
+# all2all-ann
 
 A high-performance C library for solving the **All-to-All Approximate Nearest Neighbors** 
 problem with parallelization support. The library leverages **POSIX Threads (pthreads)**, 
