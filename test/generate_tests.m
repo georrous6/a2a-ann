@@ -1,4 +1,4 @@
-function generate_test_files()
+function generate_tests()
 
     rng(0); % Add random seed for reproducibility
 
