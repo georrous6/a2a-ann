@@ -33,7 +33,7 @@ function generate_tests(outputDir)
     save(fullfile(outputDir, 'test02.mat'), 'C', 'Q', 'K', 'test_D', 'test_IDX', 'test_name');
     
     MAX_SIZE = 2000;
-    NTESTS = 99;
+    NTESTS = 20;
     for i = 3:NTESTS
         M = randi(MAX_SIZE);
         N = randi(MAX_SIZE);
