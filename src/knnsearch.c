@@ -85,7 +85,7 @@ void knnTaskExec(const knnTask *task)
 {
     struct timeval tstart, tend;
     gettimeofday(&tstart, NULL);
-    //printf("Thread executes task with %d queries...\n", task->QUERIES_NUM);
+    printf("Thread executes task with %d queries...\n", task->QUERIES_NUM);
     double *Dall = task->Dall;
     int *IDXall = task->IDXall;
     const double *sqrmag_C = task->sqrmag_C;
@@ -118,7 +118,7 @@ void knnTaskExec(const knnTask *task)
     }
 
     gettimeofday(&tend, NULL);
-    //printf("Thread finished task with %d queries. Started: %ld sec and %ld usec, Finished: %ld sec and %ld usec\n", task->QUERIES_NUM, tstart.tv_sec, tstart.tv_usec, tend.tv_sec, tend.tv_usec);
+    printf("Thread finished task with %d queries.\n", task->QUERIES_NUM);
 }
 
 
@@ -257,7 +257,6 @@ int knnsearch(const double* Q, const double* C, int* IDX, double* D, const int M
                 int q_index_thread = 0;  // indexing of the queries in each block of queries
                 for (int t = 0; t < nthreads; t++)
                 {
-                    //D_THREAD_OFFSET += MBLOCK_THREAD_SIZE * N;
                     QUERIES_NUM_THREAD = QUERIES_NUM / nthreads;
                     if (remainder > 0)
                     {
@@ -265,7 +264,6 @@ int knnsearch(const double* Q, const double* C, int* IDX, double* D, const int M
                         QUERIES_NUM_THREAD++;
                     }
 
-                    //KNNExactTask task = (KNNExactTask){Dall + D_THREAD_OFFSET, IDXall + D_THREAD_OFFSET, K, N, MBLOCK_THREAD_SIZE};
                     knnTask task = {
                         .C = C, 
                         .Q = Q, 
@@ -290,6 +288,7 @@ int knnsearch(const double* Q, const double* C, int* IDX, double* D, const int M
                 
             // Wait for all tasks in the current block to finish
             pthread_mutex_lock(&mutexQueue);
+            printf("Waiting for %d tasks to complete...\n", runningTasks);
             while (runningTasks > 0)
             {
                 pthread_cond_wait(&condTasksComplete, &mutexQueue);
@@ -379,9 +378,11 @@ void *knnThreadStart(void *pool)
 
         pthread_mutex_lock(&mutexQueue);
         runningTasks--;
+        printf("Running tasks: %d\n", runningTasks);
         if (runningTasks == 0)
         {
             // Signal main thread that all tasks for the current block are done
+            printf("All tasks for current block completed.\n");
             pthread_cond_signal(&condTasksComplete);
         }
         pthread_mutex_unlock(&mutexQueue);
