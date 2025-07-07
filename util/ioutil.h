@@ -6,7 +6,7 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-typedef enum { DOUBLE_TYPE, INT_TYPE } MATRIX_TYPE;
+typedef enum { DOUBLE_TYPE, FLOAT_TYPE, INT_TYPE } MATRIX_TYPE;
 
 
 /**

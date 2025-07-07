@@ -229,7 +229,7 @@ int knnsearch(const double* Q, const double* C, int* IDX, double* D, const int M
         }
         else  // multithreading
         {
-            //printf("\nThreads: %d\n", nthreads);
+            printf("\nThreads: %d (OpenBLAS threads: %d)\n", nthreads, openblas_get_num_threads());
             // Create the tasks and add them to the queue
             if (QUERIES_NUM / nthreads == 0)  // create only one task
             {

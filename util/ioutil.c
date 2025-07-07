@@ -29,43 +29,40 @@ void* load_matrix(const char *filename, const char* matname, int* rows, int* col
 
 void *readHDF5File(const char *file_name, const char *dataset_name, int *rows, int *cols) 
 {
-    hid_t file_id, dataset_id, datatype_id, space_id; // IDs for file, dataset, datatype, and dataspace
-    H5T_class_t type_class; // To store the type class (integer, float, etc.)
-    hsize_t dims[2]; // For 2D datasets
+    hid_t file_id, dataset_id, datatype_id, space_id;
+    H5T_class_t type_class;
+    size_t type_size;
+    hsize_t dims[2];
     herr_t status;
     void *data = NULL;
 
-    // Open the HDF5 file in read-only mode
+    // Open file
     file_id = H5Fopen(file_name, H5F_ACC_RDONLY, H5P_DEFAULT);
-    if (file_id < 0) 
-    {
+    if (file_id < 0) {
         fprintf(stderr, "Error: Unable to open file %s\n", file_name);
         return NULL;
     }
 
-    // Open the dataset
+    // Open dataset
     dataset_id = H5Dopen(file_id, dataset_name, H5P_DEFAULT);
-    if (dataset_id < 0) 
-    {
+    if (dataset_id < 0) {
         fprintf(stderr, "Error: Unable to open dataset %s\n", dataset_name);
         H5Fclose(file_id);
         return NULL;
     }
 
-    // Get the dataspace of the dataset
+    // Get dataspace
     space_id = H5Dget_space(dataset_id);
-    if (space_id < 0) 
-    {
+    if (space_id < 0) {
         fprintf(stderr, "Error: Unable to get dataspace for dataset %s\n", dataset_name);
         H5Dclose(dataset_id);
         H5Fclose(file_id);
         return NULL;
     }
 
-    // Verify that the dataset is 2D
+    // Ensure it's a 2D dataset
     int ndims = H5Sget_simple_extent_ndims(space_id);
-    if (ndims != 2) 
-    {
+    if (ndims != 2) {
         fprintf(stderr, "Error: Dataset %s is not 2D\n", dataset_name);
         H5Sclose(space_id);
         H5Dclose(dataset_id);
@@ -73,16 +70,16 @@ void *readHDF5File(const char *file_name, const char *dataset_name, int *rows, i
         return NULL;
     }
 
-    // Get the dimensions of the dataset
+    // Get dimensions
     H5Sget_simple_extent_dims(space_id, dims, NULL);
     printf("Dataset dimensions: %llu x %llu\n", dims[0], dims[1]);
-    *rows = dims[0];
-    *cols = dims[1];
+    *rows = (int)dims[0];
+    *cols = (int)dims[1];
+    size_t total_elements = dims[0] * dims[1];
 
-    // Get the datatype of the dataset
+    // Get datatype
     datatype_id = H5Dget_type(dataset_id);
-    if (datatype_id < 0) 
-    {
+    if (datatype_id < 0) {
         fprintf(stderr, "Error: Unable to get datatype of dataset %s\n", dataset_name);
         H5Sclose(space_id);
         H5Dclose(dataset_id);
@@ -90,88 +87,50 @@ void *readHDF5File(const char *file_name, const char *dataset_name, int *rows, i
         return NULL;
     }
 
-    // Get the class of the datatype (integer, float, etc.)
     type_class = H5Tget_class(datatype_id);
+    type_size = H5Tget_size(datatype_id);
 
-    // Check if the type is supported (either integer or float)
-    if (type_class == H5T_INTEGER) 
-    {
-        printf("Detected data type: Integer\n");
-        // Allocate memory for the data
-        size_t total_elements = dims[0] * dims[1];
-        data = (int *)malloc(total_elements * sizeof(int));  // Allocate memory for integers
-        if (!data)
-        {
+    if (type_class == H5T_INTEGER && type_size == sizeof(int)) {
+        printf("Detected data type: int\n");
+        data = malloc(total_elements * sizeof(int));
+        if (!data) {
             fprintf(stderr, "Error allocating memory for int matrix\n");
-            H5Tclose(datatype_id);
-            H5Sclose(space_id);
-            H5Dclose(dataset_id);
-            H5Fclose(file_id);
-            return NULL;
+        } else {
+            status = H5Dread(dataset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+            if (status < 0) {
+                fprintf(stderr, "Error: Unable to read int dataset %s\n", dataset_name);
+                free(data);
+                data = NULL;
+            }
         }
-
-        // Read the data into the array
-        status = H5Dread(dataset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-        if (status < 0) 
-        {
-            fprintf(stderr, "Error: Unable to read integer dataset %s\n", dataset_name);
-            free(data);
-            H5Tclose(datatype_id);
-            H5Sclose(space_id);
-            H5Dclose(dataset_id);
-            H5Fclose(file_id);
-            return NULL;
+    } else if (type_class == H5T_FLOAT && type_size == sizeof(float)) {
+        printf("Detected data type: float\n");
+        data = malloc(total_elements * sizeof(float));
+        if (!data) {
+            fprintf(stderr, "Error allocating memory for float matrix\n");
+        } else {
+            status = H5Dread(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+            if (status < 0) {
+                fprintf(stderr, "Error: Unable to read float dataset %s\n", dataset_name);
+                free(data);
+                data = NULL;
+            }
         }
-    } 
-    else if (type_class == H5T_FLOAT) 
-    {
-        printf("Detected data type: Float\n");
-        // Allocate memory for the data
-        size_t total_elements = dims[0] * dims[1];
-        float *temp = (float *)malloc(total_elements * sizeof(float));
-        data = (double *)malloc(total_elements * sizeof(double));
-        if (!temp || !data)
-        {
-            fprintf(stderr, "Error allocating memory for float/double matrix\n");
-            H5Tclose(datatype_id);
-            H5Sclose(space_id);
-            H5Dclose(dataset_id);
-            H5Fclose(file_id);
-            if (temp) free(temp);
-            if (data) free(data);
-            return NULL;
+    } else if (type_class == H5T_FLOAT && type_size == sizeof(double)) {
+        printf("Detected data type: double\n");
+        data = malloc(total_elements * sizeof(double));
+        if (!data) {
+            fprintf(stderr, "Error allocating memory for double matrix\n");
+        } else {
+            status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+            if (status < 0) {
+                fprintf(stderr, "Error: Unable to read double dataset %s\n", dataset_name);
+                free(data);
+                data = NULL;
+            }
         }
-
-        // Read the data into the array
-        status = H5Dread(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, temp);
-        if (status < 0) 
-        {
-            fprintf(stderr, "Error: Unable to read float dataset %s\n", dataset_name);
-            free(temp);
-            free(data);
-            H5Tclose(datatype_id);
-            H5Sclose(space_id);
-            H5Dclose(dataset_id);
-            H5Fclose(file_id);
-            return NULL;
-        }
-
-        // Convert from float to double
-        for (size_t i = 0; i < total_elements; i++) 
-        {
-            ((double *)data)[i] = (double)temp[i];
-        }
-
-        free(temp);
-    } 
-    else 
-    {
-        fprintf(stderr, "Error: Unsupported data type. Only integers and floats are supported.\n");
-        H5Tclose(datatype_id);
-        H5Sclose(space_id);
-        H5Dclose(dataset_id);
-        H5Fclose(file_id);
-        return NULL;
+    } else {
+        fprintf(stderr, "Error: Unsupported data type (class=%d, size=%zu).\n", type_class, type_size);
     }
 
     // Clean up
@@ -179,6 +138,7 @@ void *readHDF5File(const char *file_name, const char *dataset_name, int *rows, i
     H5Sclose(space_id);
     H5Dclose(dataset_id);
     H5Fclose(file_id);
+
     return data;
 }
 
@@ -206,25 +166,25 @@ void *readMATFile(const char *filename, const char* matname, int* rows, int* col
         return NULL;
     }
 
-    // Check if the variable is a 2D numeric matrix
+    // Check for 2D numeric matrix
     if (mxGetNumberOfDimensions(matvar) == 2)
     {
-        *rows = mxGetM(matvar);
-        *cols = mxGetN(matvar);
+        *rows = (int)mxGetM(matvar);
+        *cols = (int)mxGetN(matvar);
+        size_t total_elements = (*rows) * (*cols);
 
         if (mxIsDouble(matvar))
         {
-            // Allocate memory for the double matrix
-            data = (double *)malloc((*rows) * (*cols) * sizeof(double));
+            printf("Detected data type: double\n");
+            data = malloc(total_elements * sizeof(double));
             if (!data) 
             {
-                fprintf(stderr, "Error allocating memory for matrix data.\n");
+                fprintf(stderr, "Error allocating memory for double matrix data.\n");
                 mxDestroyArray(matvar);
                 matClose(matfp);
                 return NULL;
             }
 
-            // Copy and transpose data from column-major (MATLAB) to row-major (C)
             double *matData = mxGetPr(matvar);
             for (int i = 0; i < *rows; i++) 
             {
@@ -234,19 +194,39 @@ void *readMATFile(const char *filename, const char* matname, int* rows, int* col
                 }
             }
         }
-        else if (mxIsInt32(matvar))
+        else if (mxIsSingle(matvar))
         {
-            // Allocate memory for the int matrix
-            data = (int *)malloc((*rows) * (*cols) * sizeof(int));
+            printf("Detected data type: float (single)\n");
+            data = malloc(total_elements * sizeof(float));
             if (!data) 
             {
-                fprintf(stderr, "Error allocating memory for int matrix data.\n");
+                fprintf(stderr, "Error allocating memory for float matrix data.\n");
                 mxDestroyArray(matvar);
                 matClose(matfp);
                 return NULL;
             }
 
-            // Copy and transpose data from column-major (MATLAB) to row-major (C)
+            float *matData = (float *)mxGetData(matvar);
+            for (int i = 0; i < *rows; i++) 
+            {
+                for (int j = 0; j < *cols; j++) 
+                {
+                    ((float *)data)[i * (*cols) + j] = matData[j * (*rows) + i];
+                }
+            }
+        }
+        else if (mxIsInt32(matvar))
+        {
+            printf("Detected data type: int32\n");
+            data = malloc(total_elements * sizeof(int));
+            if (!data) 
+            {
+                fprintf(stderr, "Error allocating memory for int32 matrix data.\n");
+                mxDestroyArray(matvar);
+                matClose(matfp);
+                return NULL;
+            }
+
             int *matData = (int *)mxGetData(matvar);
             for (int i = 0; i < *rows; i++) 
             {
@@ -258,7 +238,7 @@ void *readMATFile(const char *filename, const char* matname, int* rows, int* col
         }
         else
         {
-            fprintf(stderr, "The variable '%s' is not a supported numeric type (double or int32).\n", matname);
+            fprintf(stderr, "Unsupported data type for variable '%s'. Only double, float (single), or int32 supported.\n", matname);
             mxDestroyArray(matvar);
             matClose(matfp);
             return NULL;
@@ -266,16 +246,14 @@ void *readMATFile(const char *filename, const char* matname, int* rows, int* col
     }
     else
     {
-        fprintf(stderr, "The variable '%s' is not a 2D matrix.\n", matname);
+        fprintf(stderr, "Variable '%s' is not a 2D matrix.\n", matname);
         mxDestroyArray(matvar);
         matClose(matfp);
         return NULL;
     }
 
-    // Clean up
     mxDestroyArray(matvar);
     matClose(matfp);
-
     return data;
 }
 
@@ -299,7 +277,6 @@ int store_matrix(const void* mat, const char* matname, int rows, int cols, const
         matfp = matOpen(filename, "u");
         if (!matfp) 
         {
-            // File does not exist, create a new one
             matfp = matOpen(filename, "w");
             if (!matfp) 
             {
@@ -310,7 +287,7 @@ int store_matrix(const void* mat, const char* matname, int rows, int cols, const
     }
     else 
     {
-        fprintf(stderr, "Error: Unsupported file mode. Use 'w' for write or 'a' for append.\n");
+        fprintf(stderr, "Error: Unsupported file mode. Use 'w' or 'a'.\n");
         return EXIT_FAILURE;
     }
 
@@ -320,42 +297,60 @@ int store_matrix(const void* mat, const char* matname, int rows, int cols, const
         return EXIT_FAILURE;
     }
 
-    // Create a MATLAB array for the matrix
     mxArray *mx_matrix = NULL;
-    if (type == DOUBLE_TYPE) // Assume 0 corresponds to double
+
+    if (type == DOUBLE_TYPE) 
     {
         mx_matrix = mxCreateDoubleMatrix(rows, cols, mxREAL);
         if (!mx_matrix) 
         {
-            fprintf(stderr, "Error creating MATLAB matrix '%s'.\n", matname);
+            fprintf(stderr, "Error creating MATLAB double matrix '%s'.\n", matname);
             matClose(matfp);
             return EXIT_FAILURE;
         }
 
-            // Transpose and copy data into the mxArray (convert row-major to column-major)
-            double *mxData = mxGetPr(mx_matrix);
-            const double *inputData = (const double *)mat;
-            for (int i = 0; i < rows; i++) 
+        double *mxData = mxGetPr(mx_matrix);
+        const double *inputData = (const double *)mat;
+        for (int i = 0; i < rows; i++) 
+        {
+            for (int j = 0; j < cols; j++) 
             {
-                for (int j = 0; j < cols; j++) 
-                {
-                    mxData[j * rows + i] = inputData[i * cols + j];
-                }
+                mxData[j * rows + i] = inputData[i * cols + j];
             }
+        }
     }
-    else if (type == INT_TYPE) // Assume 1 corresponds to int32
+    else if (type == INT_TYPE) 
     {
         mx_matrix = mxCreateNumericMatrix(rows, cols, mxINT32_CLASS, mxREAL);
         if (!mx_matrix) 
         {
-            fprintf(stderr, "Error creating MATLAB matrix '%s'.\n", matname);
+            fprintf(stderr, "Error creating MATLAB int32 matrix '%s'.\n", matname);
             matClose(matfp);
             return EXIT_FAILURE;
         }
 
-        // Transpose and copy data into the mxArray (convert row-major to column-major)
         int *mxData = (int *)mxGetData(mx_matrix);
         const int *inputData = (const int *)mat;
+        for (int i = 0; i < rows; i++) 
+        {
+            for (int j = 0; j < cols; j++) 
+            {
+                mxData[j * rows + i] = inputData[i * cols + j];
+            }
+        }
+    }
+    else if (type == FLOAT_TYPE) 
+    {
+        mx_matrix = mxCreateNumericMatrix(rows, cols, mxSINGLE_CLASS, mxREAL);
+        if (!mx_matrix) 
+        {
+            fprintf(stderr, "Error creating MATLAB float (single) matrix '%s'.\n", matname);
+            matClose(matfp);
+            return EXIT_FAILURE;
+        }
+
+        float *mxData = (float *)mxGetData(mx_matrix);
+        const float *inputData = (const float *)mat;
         for (int i = 0; i < rows; i++) 
         {
             for (int j = 0; j < cols; j++) 
@@ -371,7 +366,7 @@ int store_matrix(const void* mat, const char* matname, int rows, int cols, const
         return EXIT_FAILURE;
     }
 
-    // Write the matrix to the MAT file
+    // Write the matrix to the file
     if (matPutVariable(matfp, matname, mx_matrix) != 0) 
     {
         fprintf(stderr, "Error writing variable '%s' to '%s'.\n", matname, filename);
@@ -380,7 +375,6 @@ int store_matrix(const void* mat, const char* matname, int rows, int cols, const
         return EXIT_FAILURE;
     }
 
-    // Clean up
     mxDestroyArray(mx_matrix);
     matClose(matfp);
 
@@ -397,11 +391,15 @@ void print_matrix(const void* mat, const char* name, int rows, int cols, MATRIX_
         {
             if (type == DOUBLE_TYPE)
             {
-                printf("%lf ", ((double *)mat)[i * cols + j]);
+                printf("%lf ", ((const double *)mat)[i * cols + j]);
             }
             else if (type == INT_TYPE)
             {
-                printf("%d ", ((int *)mat)[i * cols + j]); // %zu is the format specifier for int
+                printf("%d ", ((const int *)mat)[i * cols + j]);
+            }
+            else if (type == FLOAT_TYPE)
+            {
+                printf("%f ", ((const float *)mat)[i * cols + j]);
             }
         }
         printf("\n");
