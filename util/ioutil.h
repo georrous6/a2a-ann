@@ -6,16 +6,7 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-typedef enum { DOUBLE_TYPE, INT_TYPE } MATRIX_TYPE;
-
-
-typedef struct {
-    int sorted;              // Flag for sorted data
-    int approx;              // Flag for approximate solution
-    int verbose;             // Display information
-    char *output_filename;   // Output filename
-    int num_threads;         // Number of threads
-} Options;
+typedef enum { DOUBLE_TYPE, FLOAT_TYPE, INT_TYPE } MATRIX_TYPE;
 
 
 /**
@@ -72,53 +63,6 @@ int store_matrix(const void* mat, const char* matname, int rows, int cols, const
  * @param type the data type of the matrix (DOUBLE_TYPE or int_TYPE)
  */
 void print_matrix(const void* mat, const char* name, int rows, int cols, MATRIX_TYPE type);
-
-
-/**
- * Parses command-line arguments for the K-Nearest Neighbors search program.
- *
- * @param argc The count of command-line arguments passed to the program, including the program name.
- * @param argv An array of strings representing the command-line arguments. 
- *             The first argument (argv[0]) is the name of the program.
- * @param opts A pointer to an Options struct that will be populated with parsed optional arguments:
- *             - sorted: Indicates whether the input data is sorted (1 for true, 0 for false).
- *             - output_filename: A pointer to a string holding the name of the output file. 
- *                               If no output filename is provided, it will be set to NULL.
- *             - num_threads: An integer representing the number of threads to be used, defaulting to 1.
- * @param filename A pointer to a string that will hold the filename for the input data after parsing.
- * 
- * @return EXIT_SUCCESS (0) on successful parsing of the arguments.
- *         EXIT_FAILURE (1) if there is an error in parsing, including:
- *         - Missing input file.
- *         - Invalid thread count.
- *         - Any other parsing error (indicated by the '?' case in getopt_long).
- *
- * The function supports the following options:
- * - --sorted or -s: A flag indicating whether the input data is sorted. Default is 0 (not sorted).
- * - --approx or -a: A flag indicating whether to find the approximate nearest neighbors or not.
- * - --verbose or -v: A flag for diplaying information about the proccess.
- * - --output <filename> or -o <filename>: Specifies the output file name. If not specified, 
- *                                          the output will go to standard output.
- * - --threads <N> or -j <N>: Specifies the number of threads to be used. The value must be 
- *                            greater than or equal to 1. Default is 1.
- *
- * The function checks that exactly six positional arguments are provided after the optional arguments:
- * 1. <filename>: The input data file.
- * 2. <C>: The name of the corpus matrix.
- * 3. <Q>: The name of the queries matrix.
- * 4. <K>: The name of the variable indicating the number of neighbors to find.
- * 5. <IDX>: The name of the indexes matrix
- * 6. <D>: The name of the distances matrix
- */
-int parse_arguments(int argc, char *argv[], Options *opts, const char **filename, const char **C_NAME, const char **Q_NAME, const char **K_NAME, const char** IDX_NAME, const char **D_NAME);
-
-
-/**
- * Function to print usage of the program.
- * 
- * @param program_name the name of the program
- */
-void print_usage(const char *program_name);
 
 
 /**

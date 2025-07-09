@@ -1,29 +1,72 @@
-## To compile the target knnsearch_exact.c
+# all2all-ann
 
-gcc -fdiagnostics-color=always -g main.c src/*.c -o build/knnsearch -I/opt/OpenBLAS/include -Iinclude -I/usr/local/MATLAB/R2024b/extern/include -L/usr/local/MATLAB/R2024b/bin/glnxa64 -L/opt/OpenBLAS/lib -L/usr/local/MATLAB/R2024b/sys/os/glnxa64 -lstdc++ -lopenblas -lm -lpthread -lmat -lmx
+A high-performance C library for solving the **All-to-All Approximate Nearest Neighbors** 
+problem with parallelization support. The library leverages **POSIX Threads (pthreads)**, 
+**OpenMP**, and **OpenCilk** to efficiently compute approximate nearest neighbors across 
+large datasets.  
 
-Open your shell's configuration file:
-vim ~/.bashrc
+Additionally, it provides a parallelized implementation of the **k-Nearest Neighbors** 
+algorithm using **pthreads** for scalable performance on multicore systems.
 
-and add the following lines:
-export LD_LIBRARY_PATH=/opt/OpenBLAS/lib:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/usr/local/MATLAB/R2024b/bin/glnxa64:$LD_LIBRARY_PATH
+---
 
+## Requirements
 
-## To run the target knnsearch_exact with valgrind
+- **CMake** >= 3.10
+- **OpenBLAS**
+- **MATLAB** (only for `TEST` and `BENCHMARK` configuration)
+- **HDF5** (only for `TEST` and `BENCHMARK` configuration)
 
-cd build
+---
 
-valgrind --leak-check=full --track-origins=yes --show-leak-kinds=all --log-file=memory_usage.log ./knnsearch ../test/validity_tests/test51.mat C Q 10
+## Build with CMake
 
-## To run the tests
+The build process supports three mutually exclusive configurations:
 
+| Configuration | Dependencies |
+|---------------|--------------|
+| `LIBRARY` (default) | OpenBLAS |
+| `TEST` | OpenBLAS + MATLAB + HDF5 |
+| `BENCHMARK` | OpenBLAS + MATLAB + HDF5 |
+
+The configuration is selected via the `BUILD_CONFIGURATION`.
+According to your preffered configuration run:
+
+**Library only:**
+```bash
+cmake -S . -B build -DBUILD_CONFIGURATION=LIBRARY
+cmake --build build
+```
+
+**Library + tests:**
+```bash
+cmake -S . -B build -DBUILD_CONFIGURATION=TEST -DMATLAB_ROOT=/path/to/MATLAB/R2024b
+cmake --build build
+```
+To run the tests type
+```bash
 cd test
+chmod +x run_tests.sh
+./run_tests.sh
+```
 
-chmod +x knn_tests.sh
+**Library + benchmarks:**
+```bash
+cmake -S . -B build -DBUILD_CONFIGURATION=BENCHMARK -DMATLAB_ROOT=/path/to/MATLAB/R2024b
+cmake --build build
+```
+To run the benchmarks you have to first download the [MNIST](https://github.com/erikbern/ann-benchmarks)
+dataset. Then run
+```bash
+cd benchmark
+chmod +x run_benchmarks.sh
+./run_benchmarks.sh <path/to/mnist_dataset>
+```
 
-./knn_tests path/to/executable
+## k-Nearest Neighbors Benchmarks
 
-### or
+The benchmarks are created at 4-core system in Ubuntu 22.04 LTS using the 
+MNIST dataset and the results are shown below
 
-gcc -fdiagnostics-color=always -g validity_tests.c src/*.c -o build/validity_tests -I/opt/OpenBLAS/include -Iinclude -I/usr/local/MATLAB/R2024b/extern/include -L/usr/local/MATLAB/R2024b/bin/glnxa64 -L/opt/OpenBLAS/lib -L/usr/local/MATLAB/R2024b/sys/os/glnxa64 -lstdc++ -lopenblas -lm -lpthread -lmat -lmx
+![k-Nearest Neighbors Benchmark](docs/figures/knn_benchmarks.png)
+

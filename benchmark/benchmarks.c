@@ -2,9 +2,10 @@
 #include <stdlib.h>
 #include <math.h>
 #include <sys/time.h>
+#include <string.h>
 #include "ioutil.h"
-#include "knnsearch_exact.h"
-#include "knnsearch_approx.h"
+#include "knnsearch.h"
+#include "ann_config.h"
 
 
 // Function to set terminal color
@@ -19,23 +20,25 @@ void setColor(const char *colorCode)
 #define BOLD_GREEN     "\033[1;32m"
 #define BOLD_BLUE      "\033[1;34m"
 
+#define THREAD_CASES 7  // Number of thread cases to benchmark
 
-int benchmark(int (*func)(const double*, const double*, int*, double*, const int, const int, const int, int, const int, int), const char *filename, double *recall, double *queries_per_sec, long *execution_time, const int nthreads)
+
+int benchmark(const char *filename, float *recall, float *queries_per_sec, long *execution_time, int nthreads, int cblas_nthreads)
 {
     setColor(BOLD_BLUE);
     printf("Running test %s ...       ", filename);
     setColor(DEFAULT);
     int M, N, L;
-    double *C = NULL, *Q = NULL, *my_D = NULL;
+    float *C = NULL, *Q = NULL, *my_D = NULL;
     int *test_IDX = NULL, *my_IDX = NULL;
     int status = EXIT_FAILURE;
     struct timeval tstart, tend;
 
     // load corpus matrix from file
-    C = (double *)load_matrix(filename, "/train", &N, &L); if (!C) goto cleanup;
+    C = (float *)load_matrix(filename, "/train", &N, &L); if (!C) goto cleanup;
 
     // load queries matrix from file
-    Q = (double *)load_matrix(filename, "/test", &M, &L); if (!Q) goto cleanup;
+    Q = (float *)load_matrix(filename, "/test", &M, &L); if (!Q) goto cleanup;
 
     // load expected indices matrix from file
     int a, b;
@@ -43,16 +46,18 @@ int benchmark(int (*func)(const double*, const double*, int*, double*, const int
     const int K = b;
 
     // memory allocation for the estimated distance matrix
-    my_D = (double *)malloc(M * K * sizeof(double)); if (!my_D) goto cleanup;
+    my_D = (float *)malloc(M * K * sizeof(float)); if (!my_D) goto cleanup;
 
     // memory allocation for the estimated index matrix
     my_IDX = (int *)malloc(M * K * sizeof(int)); if (!my_IDX) goto cleanup;
 
+    ann_set_num_threads(nthreads);
+    ann_set_num_threads_cblas(cblas_nthreads);
     gettimeofday(&tstart, NULL);
-    if (func(Q, C, my_IDX, my_D, M, N, L, K, 1, nthreads)) goto cleanup;
+    if (knnsearch(Q, C, my_IDX, my_D, M, N, L, K, 1)) goto cleanup;
     gettimeofday(&tend, NULL);
     *execution_time = tend.tv_sec - tstart.tv_sec;
-    *queries_per_sec = ((double) M) / *execution_time;
+    *queries_per_sec = ((float) M) / *execution_time;
 
     status = EXIT_SUCCESS;
     int found = 0;
@@ -73,9 +78,7 @@ int benchmark(int (*func)(const double*, const double*, int*, double*, const int
         }
     }
 
-    // print_matrix(test_IDX, "test_IDX", M, *K, INT_TYPE);
-    // print_matrix(my_IDX, "my_IDX", M, *K, INT_TYPE);
-    *recall = ((double) found) / (M * K) * 100.0;
+    *recall = ((float) found) / (M * K) * 100.0;
 
 cleanup:
     if (C) free(C);
@@ -90,58 +93,37 @@ cleanup:
 
 int main(int argc, char *argv[])
 {
-    if (argc < 2) 
+    if (argc < 3) 
     {
-        fprintf(stderr, "Usage: %s <dataset>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <dataset> <benchmark_output>\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    double recall, queries_per_sec;
-    int nthreads = 4;
-    long execution_time;
-    if (benchmark(knnsearch_exact, argv[1], &recall, &queries_per_sec, &execution_time, nthreads) == EXIT_SUCCESS)
+    float recall[THREAD_CASES];
+    float queries_per_sec[THREAD_CASES];
+    int nthreads[THREAD_CASES] = {1, 1, 2, 4, 8, 16, 32};
+    int cblas_nthreads[THREAD_CASES] = {-1, 1, 1, 1, 1, 1, 1}; // OpenBLAS threads
+    long execution_time[THREAD_CASES];
+
+    for (int i = 0; i < THREAD_CASES; i++)
     {
-        printf("\n===================\n");
-        printf("Algorithm: Exact k-NN\n");
-        printf("Number of threads: %d\n", nthreads);
-        printf("Execution time: %ld sec\n", execution_time);
-        printf("Recall: %.4lf%%\n", recall);
-        printf("Queries per sec: %.4lf\n", queries_per_sec);
-    }
-    else
-    {
-        return EXIT_FAILURE;
+        if (benchmark(argv[1], &recall[i], &queries_per_sec[i], &execution_time[i], nthreads[i], cblas_nthreads[i]) == EXIT_SUCCESS)
+        {
+            printf("\n===================\n");
+            printf("Algorithm: Exact k-NN\n");
+            printf("Number of threads: %d\n", nthreads[i]);
+            printf("Execution time: %ld sec\n", execution_time[i]);
+            printf("Recall: %.4f%%\n", recall[i]);
+            printf("Queries per sec: %.4f\n", queries_per_sec[i]);
+        }
+        else
+        {
+            return EXIT_FAILURE;
+        }
     }
 
-    nthreads = 2;
-    if (benchmark(knnsearch_exact, argv[1], &recall, &queries_per_sec, &execution_time, nthreads) == EXIT_SUCCESS)
-    {
-        printf("\n===================\n");
-        printf("Algorithm: Exact k-NN\n");
-        printf("Number of threads: %d\n", nthreads);
-        printf("Execution time: %ld sec\n", execution_time);
-        printf("Recall: %.4lf%%\n", recall);
-        printf("Queries per sec: %.4lf\n", queries_per_sec);
-    }
-    else
-    {
-        return EXIT_FAILURE;
-    }
-
-    nthreads = 1;
-    if (benchmark(knnsearch_exact, argv[1], &recall, &queries_per_sec, &execution_time, nthreads) == EXIT_SUCCESS)
-    {
-        printf("\n===================\n");
-        printf("Algorithm: Exact k-NN\n");
-        printf("Number of threads: %d\n", nthreads);
-        printf("Execution time: %ld sec\n", execution_time);
-        printf("Recall: %.4lf%%\n", recall);
-        printf("Queries per sec: %.4lf\n", queries_per_sec);
-    }
-    else
-    {
-        return EXIT_FAILURE;
-    }
+    store_matrix(queries_per_sec, "queries_per_sec", 1, THREAD_CASES, argv[2], FLOAT_TYPE, 'w');
+    store_matrix(nthreads, "nthreads", 1, THREAD_CASES, argv[2], INT_TYPE, 'a');
 
     return EXIT_SUCCESS;
 }
