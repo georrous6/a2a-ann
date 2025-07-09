@@ -1,7 +1,21 @@
 #ifndef KNNSEARCH_H
 #define KNNSEARCH_H
 
+#include "memory.h"
+#include "Queue.h"
+#include "template_definitions.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <cblas.h>
+#include <math.h>
 #include <pthread.h>
+#include <sys/time.h>
+
+
+#define MAX_MEMORY_USAGE_RATIO 0.8        // Use up to 80% of available memory
+#define MIN_THREAD_CORPUS_SIZE 50         // Minimum number of corpus points per thread task
+#define MIN_THREAD_QUERIES_SIZE 2         // Minimum number of queries per thread task
+
 
 extern pthread_mutex_t mutexQueue;        // Mutex for the tasks Queue
 extern pthread_cond_t condQueue;          // Condition variable for Queue
@@ -9,16 +23,17 @@ extern pthread_cond_t condTasksComplete;  // Condition variable to signal task c
 extern int isActive;                      // Flag for threads to exit
 extern int runningTasks;                  // Holds the number of running tasks
 
+
 /**
  * Thread Task for the exact K-Nearest Neighbors problem
  */
 typedef struct knnTask {
-    const double *C;
-    const double *Q;
-    double *Dall;
+    const DTYPE *C;
+    const DTYPE *Q;
+    DTYPE *Dall;
     int *IDXall;
-    const double *sqrmag_C;
-    const double *sqrmag_Q;
+    const DTYPE *sqrmag_C;
+    const DTYPE *sqrmag_Q;
     const int K;
     const int N;
     const int L;
@@ -29,11 +44,38 @@ typedef struct knnTask {
 
 
 /**
- * The function running on the threads for the exact solution.
- * 
- * @param pool the thread pool for the exact solution.
+ * Returns the system's available memory in bytes.
  */
-void *knnThreadStart(void *pool);
+unsigned long get_available_memory_bytes();
+
+
+/**
+ * Computes the optimal number of threads according to the maximum
+ * number of queries per block and the size of the corpus.
+ * 
+ * @param MBLOCK_MAX_SIZE the maximum number of queries per block
+ * @param N the number of corpus points
+ * @return the number of threads to use
+ */
+int get_num_threads(int MBLOCK_MAX_SIZE, int N);
+
+
+/**
+ * Allocates the appropriate memory for the matrices of the exact solution according 
+ * to the system's available resources. This function repeatedly splits the corpus data
+ * into blocks until it fits in the memory without exausting the system's resources.
+ * 
+ * @param Dall the distances matrix between all the corpus and the queries points
+ * @param IDXall the indexes matrix between all the corpus and the queries points
+ * @param sqrmag_Q a vector with the square magnitudes of all the query points
+ * @param sqrmag_C a vector with the square magnitudes of all the coprus points
+ * @param M the number of queries
+ * @param N the number of corpus data
+ * @param MBLOCK_SIZE the maximum number of the queries that the program is able to handle
+ * @return EXIT_SUCCESS if the allocation was successfull and EXIT_FAILURE if the maximum 
+ * number of iterations is reached, defined by ALLOC_MAX_ITERS
+ */
+int alloc_memory(DTYPE **Dall, int **IDXall, DTYPE **sqrmag_Q, DTYPE **sqrmag_C, const int M, const int N, int *MBLOCK_SIZE);
 
 
 /**
@@ -44,7 +86,7 @@ void *knnThreadStart(void *pool);
  * @param i the index of the first element to be swapped
  * @param j the index of the second element to be swapped
  */
-void swap(double *arr, int *idx, int i, int j);
+void swap(DTYPE *arr, int *idx, int i, int j);
 
 
 /**
@@ -59,7 +101,8 @@ void swap(double *arr, int *idx, int i, int j);
  * @param r the rightmost index of the array
  * @return the index of the pivot element
  */
-int partition(double *arr, int *idx, int l, int r);
+int partition(DTYPE *arr, int *idx, int l, int r);
+
 
 /**
  * Apply Quick Select algorithm to an array while maintaining
@@ -71,7 +114,7 @@ int partition(double *arr, int *idx, int l, int r);
  * @param r the rightmost index of the array
  * @param k the index of the kth smallest element. Indexing starts from 1
  */
-void qselect(double *arr, int *idx, int l, int r, int k);
+void qselect(DTYPE *arr, int *idx, int l, int r, int k);
 
 
 /**
@@ -83,7 +126,22 @@ void qselect(double *arr, int *idx, int l, int r, int k);
  * @param l the leftmost index of the array
  * @param r the rightmost index of the array
  */
-void qsort_(double *arr, int *idx, int l, int r);
+void qsort_(DTYPE *arr, int *idx, int l, int r);
+
+
+/**
+ * Function for executing the task for the exact solution of KNN.
+ * 
+ * @param task the task to execute
+ */
+void knnTaskExec(const knnTask *task);
+
+/**
+ * The function running on the threads for the exact solution.
+ * 
+ * @param pool the thread pool for the exact solution.
+ */
+void *knnThreadStart(void *pool);
 
 
 /**
@@ -105,14 +163,6 @@ void qsort_(double *arr, int *idx, int l, int r);
  * @note The user is responsible to pass IDX and D matrices with the appropriate
  * dimensions
  */
-int knnsearch(const double* Q, const double* C, int* IDX, double* D, const int M, const int N, const int L, const int K, const int sorted, int nthreads);
+int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, const int N, const int L, const int K, const int sorted, int nthreads);
 
-
-/**
- * Function for executing the task for the exact solution of KNN.
- * 
- * @param task the task to execute
- */
-void knnTaskExec(const knnTask *task);
-
-#endif
+#endif // KNNSEARCH_H

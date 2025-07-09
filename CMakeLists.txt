@@ -16,14 +16,28 @@ find_package(OpenBLAS REQUIRED)
 # Find all core library sources
 file(GLOB_RECURSE SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 
-# Create the core library target
-add_library(annlib ${SRC_FILES})
-target_include_directories(annlib
+# === Create double precision library ===
+add_library(annlib_d ${SRC_FILES})
+target_compile_definitions(annlib_d PRIVATE DOUBLE_DTYPE)
+target_include_directories(annlib_d
     PUBLIC
         ${OpenBLAS_INCLUDE_DIRS}
         "${PROJECT_SOURCE_DIR}/include"
 )
-target_link_libraries(annlib
+target_link_libraries(annlib_d
+    PUBLIC
+        ${OpenBLAS_LIBRARIES}
+)
+
+# === Create single precision library ===
+add_library(annlib_f ${SRC_FILES})
+target_compile_definitions(annlib_f PRIVATE FLOAT_DTYPE)
+target_include_directories(annlib_f
+    PUBLIC
+        ${OpenBLAS_INCLUDE_DIRS}
+        "${PROJECT_SOURCE_DIR}/include"
+)
+target_link_libraries(annlib_f
     PUBLIC
         ${OpenBLAS_LIBRARIES}
 )
@@ -58,6 +72,7 @@ if(BUILD_CONFIGURATION STREQUAL "TEST")
     add_executable(tests
         ${TEST_SOURCES}
     )
+    target_compile_definitions(tests PRIVATE DOUBLE_DTYPE)
     target_include_directories(tests
         PRIVATE
             "${MATLAB_INCLUDE_DIR}"
@@ -68,7 +83,7 @@ if(BUILD_CONFIGURATION STREQUAL "TEST")
     )
     target_link_libraries(tests
         PRIVATE
-            annlib
+            annlib_d
             ${MATLAB_LIB_MAT}
             ${MATLAB_LIB_MX}
             ${MATLAB_LIB_MEX}
@@ -86,6 +101,7 @@ elseif(BUILD_CONFIGURATION STREQUAL "BENCHMARK")
     add_executable(benchmarks
         ${BENCHMARK_SOURCES}
     )
+    target_compile_definitions(benchmarks PRIVATE FLOAT_DTYPE)
     target_include_directories(benchmarks
         PRIVATE
             "${MATLAB_INCLUDE_DIR}"
@@ -96,7 +112,7 @@ elseif(BUILD_CONFIGURATION STREQUAL "BENCHMARK")
     )
     target_link_libraries(benchmarks
         PRIVATE
-            annlib
+            annlib_f
             ${MATLAB_LIB_MAT}
             ${MATLAB_LIB_MX}
             ${MATLAB_LIB_MEX}

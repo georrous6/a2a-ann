@@ -1,8 +1,8 @@
-function plotQueriesPerSec(matFilePath)
+function plot_knn_benchmarks(matFilePath)
 % plotQueriesPerSec - Plots queries_per_sec vs nthreads from a .mat file.
 %
 % Usage:
-%   plotQueriesPerSec('benchmark-filename.mat')
+%   plot_knn_benchmarks('benchmark-filename.mat')
 
     % Load the .mat file
     data = load(matFilePath);
@@ -30,10 +30,5 @@ function plotQueriesPerSec(matFilePath)
     ylabel('Queries per Second');
     title('Queries per Second vs Number of Threads');
     
-    % Optionally, add data labels
-    for i = 1:length(nthreads)
-        text(nthreads(i), queries_per_sec(i), ...
-            sprintf('%.2f', queries_per_sec(i)), ...
-            'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center');
-    end
+    saveas(gcf, 'knn_benchmarks.png');
 end

@@ -5,7 +5,10 @@
 #include <stdlib.h>
 #include <cblas.h>
 #include <math.h>
+#include <pthread.h>
 #include <sys/time.h>
+#include <sys/sysinfo.h>
+#include <unistd.h>
 
 
 pthread_mutex_t mutexQueue;
@@ -15,9 +18,36 @@ int isActive;
 int runningTasks;
 
 
-void swap(double *arr, int *idx, int i, int j) 
+int get_num_threads(int MBLOCK_MAX_SIZE, int N)
 {
-    double dtemp = arr[i];
+    const long num_cores = sysconf(_SC_NPROCESSORS_ONLN);  // Number of online processors
+    if (num_cores < 1) 
+    {
+        perror("sysconf\n");
+        return 1;
+    }
+
+    int queries_per_block = MBLOCK_MAX_SIZE / (int)num_cores;
+
+    return queries_per_block >= MIN_THREAD_QUERIES_SIZE && N >= MIN_THREAD_CORPUS_SIZE ? (int)num_cores : 1;
+}
+
+
+unsigned long get_available_memory_bytes() 
+{
+    unsigned long available_memory = 0;
+    struct sysinfo info;
+    if (sysinfo(&info) == 0) 
+    {
+        available_memory = info.freeram * info.mem_unit;  // Multiply by unit size
+    }
+    return available_memory;
+}
+
+
+void swap(DTYPE *arr, int *idx, int i, int j) 
+{
+    DTYPE dtemp = arr[i];
     arr[i] = arr[j];
     arr[j] = dtemp;
     int lutemp = idx[i];
@@ -26,9 +56,9 @@ void swap(double *arr, int *idx, int i, int j)
 }
 
 
-int partition(double *arr, int *idx, int l, int r) 
+int partition(DTYPE *arr, int *idx, int l, int r) 
 {
-    double pivot = arr[r];
+    DTYPE pivot = arr[r];
     int i = l;
     for (int j = l; j <= r - 1; j++) 
     {
@@ -43,7 +73,7 @@ int partition(double *arr, int *idx, int l, int r)
 }
 
 
-void qselect(double *arr, int *idx, int l, int r, int k) 
+void qselect(DTYPE *arr, int *idx, int l, int r, int k) 
 {
     // Partition the array around the last 
     // element and get the position of the pivot 
@@ -66,7 +96,7 @@ void qselect(double *arr, int *idx, int l, int r, int k)
 }
 
 
-void qsort_(double *arr, int *idx, int l, int r) 
+void qsort_(DTYPE *arr, int *idx, int l, int r) 
 {
     if (l < r) 
     {
@@ -86,12 +116,12 @@ void knnTaskExec(const knnTask *task)
     struct timeval tstart, tend;
     gettimeofday(&tstart, NULL);
     printf("Thread executes task with %d queries...\n", task->QUERIES_NUM);
-    double *Dall = task->Dall;
+    DTYPE *Dall = task->Dall;
     int *IDXall = task->IDXall;
-    const double *sqrmag_C = task->sqrmag_C;
-    const double *sqrmag_Q = task->sqrmag_Q;
-    const double *C = task->C;
-    const double *Q = task->Q;
+    const DTYPE *sqrmag_C = task->sqrmag_C;
+    const DTYPE *sqrmag_Q = task->sqrmag_Q;
+    const DTYPE *C = task->C;
+    const DTYPE *Q = task->Q;
     const int QUERIES_NUM = task->QUERIES_NUM;
     const int N = task->N;
     const int K = task->K;
@@ -100,7 +130,7 @@ void knnTaskExec(const knnTask *task)
     const int q_index_thread = task->q_index_thread;
 
     // compute D = -2*Q*C'
-    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, QUERIES_NUM, N, L, -2.0, Q + q_index * L, L, C, L, 0.0, Dall + q_index_thread * N, N);
+    GEMM(CblasRowMajor, CblasNoTrans, CblasTrans, QUERIES_NUM, N, L, -2.0, Q + q_index * L, L, C, L, 0.0, Dall + q_index_thread * N, N);
 
     // compute the distance matrix D by applying the formula D = sqrt(C.^2 -2*Q*C' + (Q.^2)')
     for (int i = 0; i < QUERIES_NUM; i++)
@@ -122,11 +152,98 @@ void knnTaskExec(const knnTask *task)
 }
 
 
-int knnsearch(const double* Q, const double* C, int* IDX, double* D, const int M, const int N, const int L, const int K, const int sorted, int nthreads)
+void *knnThreadStart(void *pool)
+{
+    Queue* queue = (Queue *)pool;
+    knnTask task;
+
+    while (isActive)
+    {
+        pthread_mutex_lock(&mutexQueue);
+        while (Queue_isEmpty(queue) && isActive)
+        {
+            pthread_cond_wait(&condQueue, &mutexQueue);
+        }
+
+        if (!isActive)  // Check again after waiting to exit if flag has changed
+        {
+            pthread_mutex_unlock(&mutexQueue);
+            break;
+        }
+
+        Queue_dequeue(queue, (void *)&task);
+                
+        pthread_mutex_unlock(&mutexQueue);
+        
+        knnTaskExec(&task);
+
+        pthread_mutex_lock(&mutexQueue);
+        runningTasks--;
+        printf("Running tasks: %d\n", runningTasks);
+        if (runningTasks == 0)
+        {
+            // Signal main thread that all tasks for the current block are done
+            printf("All tasks for current block completed.\n");
+            pthread_cond_signal(&condTasksComplete);
+        }
+        pthread_mutex_unlock(&mutexQueue);
+    }
+
+    return NULL;
+}
+
+
+int alloc_memory(DTYPE **Dall, int **IDXall, DTYPE **sqrmag_Q, DTYPE **sqrmag_C, const int M, const int N, int *MBLOCK_MAX_SIZE)
+{
+    unsigned long available_memory = get_available_memory_bytes();
+    unsigned long max_allocable_memory = (unsigned long)(available_memory * MAX_MEMORY_USAGE_RATIO);
+
+    *MBLOCK_MAX_SIZE = M; 
+    unsigned long required_memory = (*MBLOCK_MAX_SIZE) * N * sizeof(int) +
+                                    (*MBLOCK_MAX_SIZE) * N * sizeof(DTYPE) +
+                                    (*MBLOCK_MAX_SIZE) * sizeof(DTYPE) +
+                                    N * sizeof(DTYPE);
+    
+    if (required_memory > max_allocable_memory)
+    {
+        *MBLOCK_MAX_SIZE = (max_allocable_memory - N * sizeof(DTYPE)) / 
+                            (N * sizeof(int) + N * sizeof(DTYPE) + sizeof(DTYPE));
+
+        printf("Too large distance matrix. Max queries per block: %d\n", *MBLOCK_MAX_SIZE);
+    }
+
+    if (*MBLOCK_MAX_SIZE < 1) 
+    {
+        fprintf(stderr, "Error: Insufficient memory for minimum block size.\n");
+        return EXIT_FAILURE;
+    }
+
+
+
+    *IDXall = (int *)malloc((*MBLOCK_MAX_SIZE) * N * sizeof(int));
+    *Dall = (DTYPE *)malloc((*MBLOCK_MAX_SIZE) * N * sizeof(DTYPE));
+    *sqrmag_Q = (DTYPE *)malloc((*MBLOCK_MAX_SIZE) * sizeof(DTYPE));
+    *sqrmag_C = (DTYPE *)malloc(N * sizeof(DTYPE));
+
+    if ((*IDXall) && (*Dall) && (*sqrmag_C) && (*sqrmag_Q))
+    {
+        return EXIT_SUCCESS;
+    }
+
+    if (*sqrmag_C) free(*sqrmag_C);
+    if (*sqrmag_Q) free(*sqrmag_Q);
+    if (*Dall) free(*Dall);
+    if (*IDXall) free(*IDXall);
+
+    return EXIT_FAILURE;
+}
+
+
+int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, const int N, const int L, const int K, const int sorted, int nthreads)
 {
     isActive = 1;
     runningTasks = 0;
-    double *Dall = NULL, *sqrmag_Q = NULL, *sqrmag_C = NULL;
+    DTYPE *Dall = NULL, *sqrmag_Q = NULL, *sqrmag_C = NULL;
     int *IDXall = NULL;
     int MAX_QUERIES_MEMORY;  // The maximum number of queries that can be stored in memory
     int status = EXIT_FAILURE;
@@ -200,17 +317,18 @@ int knnsearch(const double* Q, const double* C, int* IDX, double* D, const int M
         // since it is shared accross threads
         for (int i = 0; i < N; i++)
         {
-            sqrmag_C[i] = cblas_ddot(L, C + i * L, 1, C + i * L, 1);
+            sqrmag_C[i] = DOT(L, C + i * L, 1, C + i * L, 1);
         }
 
         // Pre compute the square of magnitudes of the row vectors of matrix Q
         for (int i = 0; i < QUERIES_NUM; i++)
         {
-            sqrmag_Q[i] = cblas_ddot(L, Q + (i + q_index) * L, 1, Q + (i + q_index) * L, 1);
+            sqrmag_Q[i] = DOT(L, Q + (i + q_index) * L, 1, Q + (i + q_index) * L, 1);
         }
         
         if (nthreads == 1)  // no multithreading
         {
+            printf("\nThreads: %d (OpenBLAS threads: %d)\n", nthreads, openblas_get_num_threads());
             knnTask task = {
                 .C = C, 
                 .Q = Q, 
@@ -302,7 +420,7 @@ int knnsearch(const double* Q, const double* C, int* IDX, double* D, const int M
         {
             for (int j = 0; j < K; j++)
             {
-                D[(q_index + i) * K + j] = sqrt(Dall[i * N + j]);
+                D[(q_index + i) * K + j] = SQRT(Dall[i * N + j]);
                 IDX[(q_index + i) * K + j] = IDXall[i * N + j];  // zero-based indexing
             }
 
@@ -349,45 +467,3 @@ cleanup:
     free(IDXall);
     return status;
 }
-
-
-void *knnThreadStart(void *pool)
-{
-    Queue* queue = (Queue *)pool;
-    knnTask task;
-
-    while (isActive)
-    {
-        pthread_mutex_lock(&mutexQueue);
-        while (Queue_isEmpty(queue) && isActive)
-        {
-            pthread_cond_wait(&condQueue, &mutexQueue);
-        }
-
-        if (!isActive)  // Check again after waiting to exit if flag has changed
-        {
-            pthread_mutex_unlock(&mutexQueue);
-            break;
-        }
-
-        Queue_dequeue(queue, (void *)&task);
-                
-        pthread_mutex_unlock(&mutexQueue);
-        
-        knnTaskExec(&task);
-
-        pthread_mutex_lock(&mutexQueue);
-        runningTasks--;
-        printf("Running tasks: %d\n", runningTasks);
-        if (runningTasks == 0)
-        {
-            // Signal main thread that all tasks for the current block are done
-            printf("All tasks for current block completed.\n");
-            pthread_cond_signal(&condTasksComplete);
-        }
-        pthread_mutex_unlock(&mutexQueue);
-    }
-
-    return NULL;
-}
-

@@ -40,6 +40,6 @@ if [ $? -ne 0 ]; then
 fi
 
 # Call the MATLAB function to plot results, passing the benchmark output file
-matlab -batch "plotQueriesPerSec('$BENCHMARK_OUTPUT'); exit;"
+matlab -batch "plot_knn_benchmarks('$BENCHMARK_OUTPUT'); exit;"
 
 echo "Benchmark completed successfully."
