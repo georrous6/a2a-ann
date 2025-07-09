@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
 project(annlib C)
 
+# Set CMake policies to ensure compatibility
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
 # Allow user to specify MATLAB root folder (optional)
 set(MATLAB_ROOT "" CACHE PATH "Root directory of MATLAB installation (required for TEST and BENCHMARK configurations)")
 

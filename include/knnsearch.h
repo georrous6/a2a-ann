@@ -1,21 +1,9 @@
 #ifndef KNNSEARCH_H
 #define KNNSEARCH_H
 
-#include "memory.h"
 #include "Queue.h"
 #include "template_definitions.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <cblas.h>
-#include <math.h>
 #include <pthread.h>
-#include <sys/time.h>
-
-
-#define MAX_MEMORY_USAGE_RATIO 0.8        // Use up to 80% of available memory
-#define MIN_THREAD_CORPUS_SIZE 50         // Minimum number of corpus points per thread task
-#define MIN_THREAD_QUERIES_SIZE 2         // Minimum number of queries per thread task
-
 
 extern pthread_mutex_t mutexQueue;        // Mutex for the tasks Queue
 extern pthread_cond_t condQueue;          // Condition variable for Queue
@@ -41,23 +29,6 @@ typedef struct knnTask {
     const int q_index;         // Index of the first query to be proccessed
     const int q_index_thread;  // Index of the query to be proccesed inside a thread
 } knnTask;
-
-
-/**
- * Returns the system's available memory in bytes.
- */
-unsigned long get_available_memory_bytes();
-
-
-/**
- * Computes the optimal number of threads according to the maximum
- * number of queries per block and the size of the corpus.
- * 
- * @param MBLOCK_MAX_SIZE the maximum number of queries per block
- * @param N the number of corpus points
- * @return the number of threads to use
- */
-int get_num_threads(int MBLOCK_MAX_SIZE, int N);
 
 
 /**
@@ -157,12 +128,11 @@ void *knnThreadStart(void *pool);
  * @param L the number of columns of Q and C
  * @param K the number of nearest neighbors
  * @param sorted if set to a non-negative value outputs the distances in ascending order
- * @param nthreads the number of threads to use. If set to -1 it automatically uses the appropriate number of threads
  * @return 0 on succesfull exit and 1 if an error occured
  * @note The function assumes that Q and C have the same number of columns.
  * @note The user is responsible to pass IDX and D matrices with the appropriate
  * dimensions
  */
-int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, const int N, const int L, const int K, const int sorted, int nthreads);
+int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, const int N, const int L, const int K, const int sorted);
 
 #endif // KNNSEARCH_H

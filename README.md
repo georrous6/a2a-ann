@@ -55,9 +55,18 @@ chmod +x run_tests.sh
 cmake -S . -B build -DBUILD_CONFIGURATION=BENCHMARK -DMATLAB_ROOT=/path/to/MATLAB/R2024b
 cmake --build build
 ```
-To run the benchmarks type
+To run the benchmarks you have to first download the [MNIST](https://github.com/erikbern/ann-benchmarks)
+dataset. Then run
 ```bash
 cd benchmark
 chmod +x run_benchmarks.sh
-./run_benchmarks.sh
+./run_benchmarks.sh <path/to/mnist_dataset>
 ```
+
+## k-Nearest Neighbors Benchmarks
+
+The benchmarks are created at 4-core system in Ubuntu 22.04 LTS using the 
+MNIST dataset and the results are shown below
+
+![k-Nearest Neighbors Benchmark](docs/figures/knn_benchmarks.png)
+

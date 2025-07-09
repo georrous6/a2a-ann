@@ -1,14 +1,11 @@
 #include "knnsearch.h"
-#include "memory.h"
+#include "ann_config.h"
 #include "Queue.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <cblas.h>
 #include <math.h>
 #include <pthread.h>
-#include <sys/time.h>
-#include <sys/sysinfo.h>
-#include <unistd.h>
+#include <cblas.h>
 
 
 pthread_mutex_t mutexQueue;
@@ -16,33 +13,6 @@ pthread_cond_t condQueue;
 pthread_cond_t condTasksComplete;
 int isActive;
 int runningTasks;
-
-
-int get_num_threads(int MBLOCK_MAX_SIZE, int N)
-{
-    const long num_cores = sysconf(_SC_NPROCESSORS_ONLN);  // Number of online processors
-    if (num_cores < 1) 
-    {
-        perror("sysconf\n");
-        return 1;
-    }
-
-    int queries_per_block = MBLOCK_MAX_SIZE / (int)num_cores;
-
-    return queries_per_block >= MIN_THREAD_QUERIES_SIZE && N >= MIN_THREAD_CORPUS_SIZE ? (int)num_cores : 1;
-}
-
-
-unsigned long get_available_memory_bytes() 
-{
-    unsigned long available_memory = 0;
-    struct sysinfo info;
-    if (sysinfo(&info) == 0) 
-    {
-        available_memory = info.freeram * info.mem_unit;  // Multiply by unit size
-    }
-    return available_memory;
-}
 
 
 void swap(DTYPE *arr, int *idx, int i, int j) 
@@ -113,9 +83,7 @@ void qsort_(DTYPE *arr, int *idx, int l, int r)
 
 void knnTaskExec(const knnTask *task)
 {
-    struct timeval tstart, tend;
-    gettimeofday(&tstart, NULL);
-    printf("Thread executes task with %d queries...\n", task->QUERIES_NUM);
+    //printf("Thread executes task with %d queries...\n", task->QUERIES_NUM);
     DTYPE *Dall = task->Dall;
     int *IDXall = task->IDXall;
     const DTYPE *sqrmag_C = task->sqrmag_C;
@@ -147,8 +115,7 @@ void knnTaskExec(const knnTask *task)
         qselect(Dall + (i + q_index_thread) * N, IDXall + (i + q_index_thread) * N, 0, N - 1, K);
     }
 
-    gettimeofday(&tend, NULL);
-    printf("Thread finished task with %d queries.\n", task->QUERIES_NUM);
+    //printf("Thread finished task with %d queries.\n", task->QUERIES_NUM);
 }
 
 
@@ -179,11 +146,11 @@ void *knnThreadStart(void *pool)
 
         pthread_mutex_lock(&mutexQueue);
         runningTasks--;
-        printf("Running tasks: %d\n", runningTasks);
+        //printf("Running tasks: %d\n", runningTasks);
         if (runningTasks == 0)
         {
             // Signal main thread that all tasks for the current block are done
-            printf("All tasks for current block completed.\n");
+            //printf("All tasks for current block completed.\n");
             pthread_cond_signal(&condTasksComplete);
         }
         pthread_mutex_unlock(&mutexQueue);
@@ -239,7 +206,7 @@ int alloc_memory(DTYPE **Dall, int **IDXall, DTYPE **sqrmag_Q, DTYPE **sqrmag_C,
 }
 
 
-int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, const int N, const int L, const int K, const int sorted, int nthreads)
+int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, const int N, const int L, const int K, const int sorted)
 {
     isActive = 1;
     runningTasks = 0;
@@ -263,16 +230,19 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
 
     // if the number of threads is -1 find automatically the appropriate number of threads, 
     // otherwise use the number of threads the user passed explicitly
-    nthreads = nthreads == -1 ? get_num_threads(MAX_QUERIES_MEMORY, N) : nthreads;
+    int nthreads = ann_get_num_threads();
+    if (MAX_QUERIES_MEMORY / nthreads < MIN_QUERIES_PER_BLOCK) {
+        ann_set_num_threads(1);
+    }
+    const int NTHREADS = ann_get_num_threads();
 
     pthread_t* threads = NULL;
     pthread_attr_t attr;
     Queue tasksQueue;
 
     // Create the threads if multithreading is desired
-    if (nthreads > 1)
+    if (NTHREADS > 1)
     {
-        openblas_set_num_threads(1);  // Ensure OpenBLAS uses only one thread
         Queue_init(&tasksQueue, sizeof(knnTask));
         pthread_attr_init(&attr);
         pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
@@ -280,14 +250,14 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
         pthread_cond_init(&condQueue, NULL);
         pthread_cond_init(&condTasksComplete, NULL);
 
-        threads = (pthread_t *)malloc(sizeof(pthread_t) * nthreads);
+        threads = (pthread_t *)malloc(sizeof(pthread_t) * NTHREADS);
         if (!threads)
         {
             fprintf(stderr, "Error allocating memory for threads\n");
             goto cleanup;
         }
 
-        for (int t = 0; t < nthreads; t++)
+        for (int t = 0; t < NTHREADS; t++)
         {
             if (pthread_create(&threads[t], NULL, knnThreadStart, (void *)&tasksQueue))
             {
@@ -326,9 +296,9 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
             sqrmag_Q[i] = DOT(L, Q + (i + q_index) * L, 1, Q + (i + q_index) * L, 1);
         }
         
-        if (nthreads == 1)  // no multithreading
+        printf("\nThreads: %d (OpenBLAS threads: %d)\n", NTHREADS, openblas_get_num_threads());
+        if (NTHREADS == 1)  // no multithreading
         {
-            printf("\nThreads: %d (OpenBLAS threads: %d)\n", nthreads, openblas_get_num_threads());
             knnTask task = {
                 .C = C, 
                 .Q = Q, 
@@ -347,9 +317,8 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
         }
         else  // multithreading
         {
-            printf("\nThreads: %d (OpenBLAS threads: %d)\n", nthreads, openblas_get_num_threads());
             // Create the tasks and add them to the queue
-            if (QUERIES_NUM / nthreads == 0)  // create only one task
+            if (QUERIES_NUM / NTHREADS == 0)  // create only one task
             {
                 knnTask task = {
                     .C = C, 
@@ -370,12 +339,12 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
             }
             else  // split workload accross all the threads
             {
-                int remainder = QUERIES_NUM % nthreads;
+                int remainder = QUERIES_NUM % NTHREADS;
                 int QUERIES_NUM_THREAD = 0;  // number of queries being proccesed on each thread
                 int q_index_thread = 0;  // indexing of the queries in each block of queries
-                for (int t = 0; t < nthreads; t++)
+                for (int t = 0; t < NTHREADS; t++)
                 {
-                    QUERIES_NUM_THREAD = QUERIES_NUM / nthreads;
+                    QUERIES_NUM_THREAD = QUERIES_NUM / NTHREADS;
                     if (remainder > 0)
                     {
                         remainder--;
@@ -406,7 +375,7 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
                 
             // Wait for all tasks in the current block to finish
             pthread_mutex_lock(&mutexQueue);
-            printf("Waiting for %d tasks to complete...\n", runningTasks);
+            //printf("Waiting for %d tasks to complete...\n", runningTasks);
             while (runningTasks > 0)
             {
                 pthread_cond_wait(&condTasksComplete, &mutexQueue);
@@ -434,12 +403,12 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
         q_index += QUERIES_NUM;
     }
 
-    if (nthreads > 1)
+    if (NTHREADS > 1)
     {
         isActive = 0;  // Set termination flag for threads
         pthread_cond_broadcast(&condQueue);  // Wake up all threads to allow them to exit
 
-        for (int t = 0; t < nthreads; t++)
+        for (int t = 0; t < NTHREADS; t++)
         {
             if (pthread_join(threads[t], NULL))
             {
@@ -452,7 +421,7 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
     status = EXIT_SUCCESS;
 
 cleanup:
-    if (nthreads > 1)
+    if (NTHREADS > 1)
     {
         Queue_destroy(&tasksQueue);
         pthread_attr_destroy(&attr);

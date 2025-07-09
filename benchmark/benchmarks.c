@@ -5,6 +5,7 @@
 #include <string.h>
 #include "ioutil.h"
 #include "knnsearch.h"
+#include "ann_config.h"
 
 
 // Function to set terminal color
@@ -19,10 +20,10 @@ void setColor(const char *colorCode)
 #define BOLD_GREEN     "\033[1;32m"
 #define BOLD_BLUE      "\033[1;34m"
 
-#define THREAD_CASES 5  // Number of thread cases to benchmark
+#define THREAD_CASES 7  // Number of thread cases to benchmark
 
 
-int benchmark(const char *filename, float *recall, float *queries_per_sec, long *execution_time, const int nthreads)
+int benchmark(const char *filename, float *recall, float *queries_per_sec, long *execution_time, int nthreads, int cblas_nthreads)
 {
     setColor(BOLD_BLUE);
     printf("Running test %s ...       ", filename);
@@ -50,8 +51,10 @@ int benchmark(const char *filename, float *recall, float *queries_per_sec, long 
     // memory allocation for the estimated index matrix
     my_IDX = (int *)malloc(M * K * sizeof(int)); if (!my_IDX) goto cleanup;
 
+    ann_set_num_threads(nthreads);
+    ann_set_num_threads_cblas(cblas_nthreads);
     gettimeofday(&tstart, NULL);
-    if (knnsearch(Q, C, my_IDX, my_D, M, N, L, K, 1, nthreads)) goto cleanup;
+    if (knnsearch(Q, C, my_IDX, my_D, M, N, L, K, 1)) goto cleanup;
     gettimeofday(&tend, NULL);
     *execution_time = tend.tv_sec - tstart.tv_sec;
     *queries_per_sec = ((float) M) / *execution_time;
@@ -98,12 +101,13 @@ int main(int argc, char *argv[])
 
     float recall[THREAD_CASES];
     float queries_per_sec[THREAD_CASES];
-    int nthreads[THREAD_CASES] = {1, 2, 4, 8, 16};
+    int nthreads[THREAD_CASES] = {1, 1, 2, 4, 8, 16, 32};
+    int cblas_nthreads[THREAD_CASES] = {-1, 1, 1, 1, 1, 1, 1}; // OpenBLAS threads
     long execution_time[THREAD_CASES];
 
     for (int i = 0; i < THREAD_CASES; i++)
     {
-        if (benchmark(argv[1], &recall[i], &queries_per_sec[i], &execution_time[i], nthreads[i]) == EXIT_SUCCESS)
+        if (benchmark(argv[1], &recall[i], &queries_per_sec[i], &execution_time[i], nthreads[i], cblas_nthreads[i]) == EXIT_SUCCESS)
         {
             printf("\n===================\n");
             printf("Algorithm: Exact k-NN\n");
