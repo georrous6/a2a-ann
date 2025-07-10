@@ -6,14 +6,33 @@
 #include <pthread.h>
 
 
-pthread_mutex_t mutexQueue;
-pthread_cond_t condQueue;
-pthread_cond_t condTasksComplete;
-int isActive;
-int runningTasks;
+static pthread_mutex_t mutexQueue;        // Mutex for the tasks Queue
+static pthread_cond_t condQueue;          // Condition variable for Queue
+static pthread_cond_t condTasksComplete;  // Condition variable to signal task completion for a block
+static int isActive;                      // Flag for threads to exit
+static int runningTasks;                  // Holds the number of running tasks
 
 
-void swap(DTYPE *arr, int *idx, int i, int j) 
+/**
+ * Thread Task for the exact K-Nearest Neighbors problem
+ */
+typedef struct knnTask {
+    const DTYPE *C;
+    const DTYPE *Q;
+    DTYPE *Dall;
+    int *IDXall;
+    const DTYPE *sqrmag_C;
+    const DTYPE *sqrmag_Q;
+    const int K;
+    const int N;
+    const int L;
+    const int QUERIES_NUM;     // Number of queries for the task to proccess
+    const int q_index;         // Index of the first query to be proccessed
+    const int q_index_thread;  // Index of the query to be proccesed inside a thread
+} knnTask;
+
+
+static void swap(DTYPE *arr, int *idx, int i, int j) 
 {
     DTYPE dtemp = arr[i];
     arr[i] = arr[j];
@@ -24,7 +43,7 @@ void swap(DTYPE *arr, int *idx, int i, int j)
 }
 
 
-int partition(DTYPE *arr, int *idx, int l, int r) 
+static int partition(DTYPE *arr, int *idx, int l, int r) 
 {
     DTYPE pivot = arr[r];
     int i = l;
@@ -41,7 +60,7 @@ int partition(DTYPE *arr, int *idx, int l, int r)
 }
 
 
-void qselect(DTYPE *arr, int *idx, int l, int r, int k) 
+static void qselect(DTYPE *arr, int *idx, int l, int r, int k) 
 {
     // Partition the array around the last 
     // element and get the position of the pivot 
@@ -64,7 +83,7 @@ void qselect(DTYPE *arr, int *idx, int l, int r, int k)
 }
 
 
-void qsort_(DTYPE *arr, int *idx, int l, int r) 
+static void qsort_(DTYPE *arr, int *idx, int l, int r) 
 {
     if (l < r) 
     {
@@ -79,7 +98,7 @@ void qsort_(DTYPE *arr, int *idx, int l, int r)
 }
 
 
-void knnTaskExec(const knnTask *task)
+static void knnTaskExec(const knnTask *task)
 {
     //printf("Thread executes task with %d queries...\n", task->QUERIES_NUM);
     DTYPE *Dall = task->Dall;
@@ -117,7 +136,7 @@ void knnTaskExec(const knnTask *task)
 }
 
 
-void *knnThreadStart(void *pool)
+static void *knnThreadStart(void *pool)
 {
     Queue* queue = (Queue *)pool;
     knnTask task;
@@ -158,7 +177,7 @@ void *knnThreadStart(void *pool)
 }
 
 
-int alloc_memory(DTYPE **Dall, int **IDXall, DTYPE **sqrmag_Q, DTYPE **sqrmag_C, const int M, const int N, int *MBLOCK_MAX_SIZE)
+static int alloc_memory(DTYPE **Dall, int **IDXall, DTYPE **sqrmag_Q, DTYPE **sqrmag_C, const int M, const int N, int *MBLOCK_MAX_SIZE)
 {
     unsigned long available_memory = get_available_memory_bytes();
     unsigned long max_allocable_memory = (unsigned long)(available_memory * MAX_MEMORY_USAGE_RATIO);

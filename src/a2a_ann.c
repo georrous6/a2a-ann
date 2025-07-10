@@ -1,10 +1,14 @@
 #include <stdlib.h>
+#include <string.h>
+#include <knnsearch.h>
 #include "a2a_ann.h"
+
 
 typedef struct {
     int* indices;
     int count;
 } ClusterIndex;
+
 
 static DTYPE distance_squared(const DTYPE* a, const DTYPE* b, int L) {
     DTYPE dist = ZERO;
