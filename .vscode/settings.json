@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "hdf5.h": "c",
+        "stdio.h": "c"
+    }
+}

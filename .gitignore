@@ -61,7 +61,6 @@ config.status
 *.swp
 *.swo
 .idea/
-.vscode/
 
 # Matlab files
 *.asv

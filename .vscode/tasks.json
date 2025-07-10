@@ -1,0 +1,19 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Tests",
+            "type": "shell",
+            "command": "cmake -S . -B build -DBUILD_CONFIGURATION=TEST -DMATLAB_ROOT=/usr/local/MATLAB/R2024b && cmake --build build",
+            "problemMatcher": [],
+            "group": "build"
+        },
+        {
+            "label": "Build Benchmarks",
+            "type": "shell",
+            "command": "cmake -S . -B build -DBUILD_CONFIGURATION=BENCHMARK -DMATLAB_ROOT=/usr/local/MATLAB/R2024b && cmake --build build",
+            "problemMatcher": [],
+            "group": "build"
+        }
+    ]
+}
