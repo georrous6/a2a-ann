@@ -17,7 +17,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "/usr/bin/bash",
-            "args": ["${workspaceFolder}/benchmark/run_benchmarks.sh", "dataset/"],
+            "args": ["${workspaceFolder}/benchmark/run_benchmarks.sh", "dataset/fashion-mnist-784-euclidean.hdf5"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/benchmark",
             "MIMode": "gdb",
