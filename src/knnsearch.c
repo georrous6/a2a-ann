@@ -3,9 +3,7 @@
 #include "Queue.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 #include <pthread.h>
-#include <cblas.h>
 
 
 pthread_mutex_t mutexQueue;
@@ -98,7 +96,7 @@ void knnTaskExec(const knnTask *task)
     const int q_index_thread = task->q_index_thread;
 
     // compute D = -2*Q*C'
-    GEMM(CblasRowMajor, CblasNoTrans, CblasTrans, QUERIES_NUM, N, L, -2.0, Q + q_index * L, L, C, L, 0.0, Dall + q_index_thread * N, N);
+    GEMM(CblasRowMajor, CblasNoTrans, CblasTrans, QUERIES_NUM, N, L, -2.0, Q + q_index * L, L, C, L, ZERO, Dall + q_index_thread * N, N);
 
     // compute the distance matrix D by applying the formula D = sqrt(C.^2 -2*Q*C' + (Q.^2)')
     for (int i = 0; i < QUERIES_NUM; i++)
