@@ -1,0 +1,27 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run Tests",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "/usr/bin/bash",
+            "args": ["${workspaceFolder}/test/run_tests.sh"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/test",
+            "MIMode": "gdb",
+            "preLaunchTask": "Build Tests"
+        },
+        {
+            "name": "Run Benchmarks",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "/usr/bin/bash",
+            "args": ["${workspaceFolder}/benchmark/run_benchmarks.sh", "dataset/"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/benchmark",
+            "MIMode": "gdb",
+            "preLaunchTask": "Build Benchmarks"
+        }
+    ]
+}

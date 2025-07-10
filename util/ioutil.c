@@ -2,7 +2,6 @@
 #include "mat.h"
 #include "hdf5.h"
 #include <stdio.h>
-#include <matio.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdint.h>
