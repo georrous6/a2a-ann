@@ -9,6 +9,7 @@
 
             "includePath": [
                 "${workspaceFolder}/include",
+                "${workspaceFolder}/util",
                 "/opt/OpenBLAS/include",
                 "/usr/local/MATLAB/R2024b/extern/include",
                 "/usr/include/hdf5/serial"

@@ -11,22 +11,7 @@
 #include <sys/types.h>
 
 
-void* load_matrix(const char *filename, const char* matname, int* rows, int* cols)
-{
-    if (has_extension(filename, ".mat"))
-    {
-        return readMATFile(filename, matname, rows, cols);
-    }
-    else if (has_extension(filename, ".hdf5"))
-    {
-        return readHDF5File(filename, matname, rows, cols);
-    }
-
-    return NULL;
-}
-
-
-void *readHDF5File(const char *file_name, const char *dataset_name, int *rows, int *cols) 
+static void *readHDF5File(const char *file_name, const char *dataset_name, int *rows, int *cols) 
 {
     hid_t file_id, dataset_id, datatype_id, space_id;
     H5T_class_t type_class;
@@ -142,7 +127,7 @@ void *readHDF5File(const char *file_name, const char *dataset_name, int *rows, i
 }
 
 
-void *readMATFile(const char *filename, const char* matname, int* rows, int* cols)
+static void *readMATFile(const char *filename, const char* matname, int* rows, int* cols)
 {
     MATFile *matfp;
     mxArray *matvar;
@@ -257,7 +242,88 @@ void *readMATFile(const char *filename, const char* matname, int* rows, int* col
 }
 
 
-int store_matrix(const void* mat, const char* matname, int rows, int cols, const char *filename, MATRIX_TYPE type, const char mode)
+static int storeHDF5File(const void* mat, const char* matname, int rows, int cols, const char *filename, MATRIX_TYPE type, const char mode) {
+    if (!mat) {
+        fprintf(stderr, "Error: Matrix data is NULL.\n");
+        return EXIT_FAILURE;
+    }
+
+    hid_t file_id;
+    if (mode == 'w') {
+        file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    } else if (mode == 'a') {
+        file_id = H5Fopen(filename, H5F_ACC_RDWR, H5P_DEFAULT);
+        if (file_id < 0) {
+            file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+        }
+    } else {
+        fprintf(stderr, "Error: Unsupported file mode. Use 'w' or 'a'.\n");
+        return EXIT_FAILURE;
+    }
+
+    if (file_id < 0) {
+        fprintf(stderr, "Error opening or creating HDF5 file '%s'.\n", filename);
+        return EXIT_FAILURE;
+    }
+
+    hsize_t dims[2] = { rows, cols };
+    hid_t dataspace_id = H5Screate_simple(2, dims, NULL);
+    if (dataspace_id < 0) {
+        fprintf(stderr, "Error creating dataspace.\n");
+        H5Fclose(file_id);
+        return EXIT_FAILURE;
+    }
+
+    hid_t dtype;
+    size_t type_size;
+    switch (type) {
+        case DOUBLE_TYPE:
+            dtype = H5T_NATIVE_DOUBLE;
+            type_size = sizeof(double);
+            break;
+        case FLOAT_TYPE:
+            dtype = H5T_NATIVE_FLOAT;
+            type_size = sizeof(float);
+            break;
+        case INT_TYPE:
+            dtype = H5T_NATIVE_INT;
+            type_size = sizeof(int);
+            break;
+        default:
+            fprintf(stderr, "Error: Unsupported matrix type.\n");
+            H5Sclose(dataspace_id);
+            H5Fclose(file_id);
+            return EXIT_FAILURE;
+    }
+
+    hid_t dset_id = H5Dcreate(file_id, matname, dtype, dataspace_id, 
+                              H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dset_id < 0) {
+        fprintf(stderr, "Error creating dataset '%s'.\n", matname);
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return EXIT_FAILURE;
+    }
+
+    herr_t status = H5Dwrite(dset_id, dtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, mat);
+    if (status < 0) {
+        fprintf(stderr, "Error writing data to dataset '%s'.\n", matname);
+        H5Dclose(dset_id);
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return EXIT_FAILURE;
+    }
+
+    // Cleanup
+    H5Dclose(dset_id);
+    H5Sclose(dataspace_id);
+    H5Fclose(file_id);
+
+    return EXIT_SUCCESS;
+}
+
+
+static int storeMATFile(const void* mat, const char* matname, int rows, int cols, const char *filename, MATRIX_TYPE type, const char mode)
 {
     if (!mat) 
     {
@@ -378,6 +444,36 @@ int store_matrix(const void* mat, const char* matname, int rows, int cols, const
     matClose(matfp);
 
     return EXIT_SUCCESS;
+}
+
+
+void *load_matrix(const char *filename, const char* matname, int* rows, int* cols)
+{
+    if (has_extension(filename, ".mat"))
+    {
+        return readMATFile(filename, matname, rows, cols);
+    }
+    else if (has_extension(filename, ".hdf5"))
+    {
+        return readHDF5File(filename, matname, rows, cols);
+    }
+
+    return NULL;
+}
+
+
+int store_matrix(const void *mat, const char *matname, int rows, int cols, const char *filename, MATRIX_TYPE type, const char mode) {
+    
+    if (has_extension(filename, ".mat"))
+    {
+        return storeMATFile(mat, matname, rows, cols, filename, type, mode);
+    }
+    else if (has_extension(filename, ".hdf5"))
+    {
+        return storeHDF5File(mat, matname, rows, cols, filename, type, mode);
+    }
+
+    return EXIT_SUCCESS;  
 }
 
 

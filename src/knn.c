@@ -1,6 +1,7 @@
-#include "knnsearch.h"
-#include "ann_config.h"
+#include "knn.h"
 #include "Queue.h"
+#include <sys/sysinfo.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -30,6 +31,62 @@ typedef struct knnTask {
     const int q_index;         // Index of the first query to be proccessed
     const int q_index_thread;  // Index of the query to be proccesed inside a thread
 } knnTask;
+
+
+void knn_set_num_threads(int n) {
+
+    const long num_cores = sysconf(_SC_NPROCESSORS_ONLN);  // Number of online processors
+    if (num_cores < 1) {
+        perror("sysconf\n");
+        return;
+    }
+
+    n = n < 1 ? (int)num_cores : n;
+
+    atomic_store(&KNN_NUM_THREADS, n);
+}
+
+
+void knn_set_num_threads_cblas(int n) {
+
+    const long num_cores = sysconf(_SC_NPROCESSORS_ONLN);  // Number of online processors
+    if (num_cores < 1) {
+        perror("sysconf\n");
+        return;
+    }
+
+    n = n < 1 ? (int)num_cores : n;
+
+    openblas_set_num_threads(n);
+}
+
+
+int knn_get_num_threads_cblas(void) {
+    int num_threads = openblas_get_num_threads();
+    if (num_threads < 1) {
+        perror("openblas_get_num_threads\n");
+        return 1;  // Default to 1 thread if the call fails
+    }
+    return num_threads;
+}
+
+
+int knn_get_num_threads(void) {
+    return atomic_load(&KNN_NUM_THREADS);
+}
+
+
+static unsigned long get_available_memory_bytes() 
+{
+    unsigned long available_memory = 0;
+    struct sysinfo info;
+    if (sysinfo(&info) == 0) 
+    {
+        available_memory = info.freeram * info.mem_unit;  // Multiply by unit size
+    }
+    return available_memory;
+}
+
 
 
 static void swap(DTYPE *arr, int *idx, int i, int j) 
@@ -100,7 +157,7 @@ static void qsort_(DTYPE *arr, int *idx, int l, int r)
 
 static void knnTaskExec(const knnTask *task)
 {
-    //printf("Thread executes task with %d queries...\n", task->QUERIES_NUM);
+    printf("Thread executes task with %d queries...\n", task->QUERIES_NUM);
     DTYPE *Dall = task->Dall;
     int *IDXall = task->IDXall;
     const DTYPE *sqrmag_C = task->sqrmag_C;
@@ -132,7 +189,7 @@ static void knnTaskExec(const knnTask *task)
         qselect(Dall + (i + q_index_thread) * N, IDXall + (i + q_index_thread) * N, 0, N - 1, K);
     }
 
-    //printf("Thread finished task with %d queries.\n", task->QUERIES_NUM);
+    printf("Thread finished task with %d queries.\n", task->QUERIES_NUM);
 }
 
 
@@ -163,11 +220,11 @@ static void *knnThreadStart(void *pool)
 
         pthread_mutex_lock(&mutexQueue);
         runningTasks--;
-        //printf("Running tasks: %d\n", runningTasks);
+        printf("Running tasks: %d\n", runningTasks);
         if (runningTasks == 0)
         {
             // Signal main thread that all tasks for the current block are done
-            //printf("All tasks for current block completed.\n");
+            printf("All tasks for current block completed.\n");
             pthread_cond_signal(&condTasksComplete);
         }
         pthread_mutex_unlock(&mutexQueue);
@@ -180,7 +237,7 @@ static void *knnThreadStart(void *pool)
 static int alloc_memory(DTYPE **Dall, int **IDXall, DTYPE **sqrmag_Q, DTYPE **sqrmag_C, const int M, const int N, int *MBLOCK_MAX_SIZE)
 {
     unsigned long available_memory = get_available_memory_bytes();
-    unsigned long max_allocable_memory = (unsigned long)(available_memory * MAX_MEMORY_USAGE_RATIO);
+    unsigned long max_allocable_memory = (unsigned long)(available_memory * KNN_MAX_MEMORY_USAGE_RATIO);
 
     *MBLOCK_MAX_SIZE = M; 
     unsigned long required_memory = (*MBLOCK_MAX_SIZE) * N * sizeof(int) +
@@ -247,11 +304,14 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
 
     // if the number of threads is -1 find automatically the appropriate number of threads, 
     // otherwise use the number of threads the user passed explicitly
-    int nthreads = ann_get_num_threads();
-    if (MAX_QUERIES_MEMORY / nthreads < MIN_QUERIES_PER_BLOCK) {
-        ann_set_num_threads(1);
+    int nthreads = knn_get_num_threads();
+    if (MAX_QUERIES_MEMORY / nthreads < KNN_MIN_QUERIES_PER_BLOCK) {
+        knn_set_num_threads(1);
     }
-    const int NTHREADS = ann_get_num_threads();
+    const int NTHREADS = knn_get_num_threads();
+    if (NTHREADS > 1) {
+        knn_set_num_threads_cblas(1);
+    }
 
     pthread_t* threads = NULL;
     pthread_attr_t attr;
@@ -392,7 +452,7 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
                 
             // Wait for all tasks in the current block to finish
             pthread_mutex_lock(&mutexQueue);
-            //printf("Waiting for %d tasks to complete...\n", runningTasks);
+            printf("Waiting for %d tasks to complete...\n", runningTasks);
             while (runningTasks > 0)
             {
                 pthread_cond_wait(&condTasksComplete, &mutexQueue);

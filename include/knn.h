@@ -1,8 +1,22 @@
-#ifndef KNNSEARCH_H
-#define KNNSEARCH_H
+#ifndef KNN_H
+#define KNN_H
 
 #include "Queue.h"
 #include "template_definitions.h"
+#include <stdatomic.h>
+
+#define KNN_MAX_MEMORY_USAGE_RATIO 0.8        // Maximum memory usage ratio
+#define KNN_MIN_QUERIES_PER_BLOCK 1           // Minimum number of queries per block
+
+static atomic_int KNN_NUM_THREADS = 1;
+
+void knn_set_num_threads(int n);
+
+int knn_get_num_threads(void);
+
+void knn_set_num_threads_cblas(int n);
+
+int knn_get_num_threads_cblas(void);
 
 
 /**

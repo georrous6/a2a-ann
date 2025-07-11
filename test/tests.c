@@ -2,8 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "ioutil.h"
-#include "knnsearch.h"
-#include "ann_config.h"
+#include "knn.h"
 
 
 // Function to set terminal color
@@ -52,7 +51,7 @@ int test_case(const char *filename, double tolerance, int *passed)
     // memory allocation for the estimated index matrix
     my_IDX = (int *)malloc(M * (*K) * sizeof(int)); if (!my_IDX) goto cleanup;
 
-    ann_set_num_threads(-1);
+    knn_set_num_threads(-1);
     if (knnsearch(Q, C, my_IDX, my_D, M, N, L, *K, 1)) goto cleanup;
 
     status = EXIT_SUCCESS;

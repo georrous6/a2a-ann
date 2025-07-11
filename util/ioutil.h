@@ -10,19 +10,6 @@ typedef enum { DOUBLE_TYPE, FLOAT_TYPE, INT_TYPE } MATRIX_TYPE;
 
 
 /**
- * Loads a matrix from a MAT file. Supports double and int data types.
- * 
- * @param filename the name of the MAT file
- * @param matname the name of the matrix to be loaded
- * @param rows stores the number of rows of the matrix
- * @param cols stores the number of columns of the matrix
- * @return a pointer to the dynamically allocated array of data
- * or NULL if an error occured
- * @note memory deallocation should take place outside the function
- */
-void *readMATFile(const char *filename, const char* matname, int* rows, int* cols);
-
-/**
  * Driver function for loading a 2D matrix from a file.
  * Supported file types are MAT and HDF5.
  * 
@@ -38,7 +25,7 @@ void* load_matrix(const char *filename, const char* matname, int* rows, int* col
 
 
 /**
- * Function to save a 2D matrix to a .mat file. Supports double and int data types.
+ * Function to save a 2D matrix to a .mat or .hdf5 file. Supports double and int data types.
  * If the file already exists it overwrites it and if it doesn't it creates it.
  *
  * @param mat Pointer to the matrix data.
@@ -97,15 +84,5 @@ int compare_file_paths(const void *a, const void *b);
  */
 char **get_file_paths(const char *directory_path, const char *extension, size_t *file_count, int sorted);
 
-/**
- * Function to read a 2D matrix from an HDF5 file.
- * 
- * @param file_name the name of the HDF5 file
- * @param dataset_name the name of the dataset i.e. the 2D matrix
- * @param rows the rows of the matrix
- * @param cols the columns of the matrix
- * @return a pointer the the matrix data and NULL if an error occured
- */
-void *readHDF5File(const char *file_name, const char *dataset_name, int *rows, int *cols);
 
 #endif
