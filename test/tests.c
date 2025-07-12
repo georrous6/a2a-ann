@@ -30,20 +30,20 @@ int test_case(const char *filename, double tolerance, int *passed)
     *passed = 0;
 
     // load corpus matrix from file
-    C = (double *)load_matrix(filename, "C", &N, &L); if (!C) goto cleanup;
+    C = (double *)load_hdf5(filename, "C", &N, &L); if (!C) goto cleanup;
 
     // load queries matrix from file
-    Q = (double *)load_matrix(filename, "Q", &M, &L); if (!Q) goto cleanup;
+    Q = (double *)load_hdf5(filename, "Q", &M, &L); if (!Q) goto cleanup;
 
     int a, b;
     // load K value from file
-    K = (int *)load_matrix(filename, "K", &a, &b); if (!K) goto cleanup;
+    K = (int *)load_hdf5(filename, "K", &a, &b); if (!K) goto cleanup;
 
     // load expected distances matrix from file
-    test_D = (double *)load_matrix(filename, "test_D", &a, &b); if (!test_D) goto cleanup;
+    test_D = (double *)load_hdf5(filename, "test_D", &a, &b); if (!test_D) goto cleanup;
 
     // load expected indices matrix from file
-    test_IDX = (int *)load_matrix(filename, "test_IDX", &a, &b); if (!test_IDX) goto cleanup;
+    test_IDX = (int *)load_hdf5(filename, "test_IDX", &a, &b); if (!test_IDX) goto cleanup;
 
     // memory allocation for the estimated distance matrix
     my_D = (double *)malloc(M * (*K) * sizeof(double)); if (!my_D) goto cleanup;
@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
     size_t cnt_passed = 0;
     size_t test_cnt;
     int passed;
-    char **file_paths = get_file_paths(argv[1], ".mat", &test_cnt, 1);
+    char **file_paths = get_file_paths(argv[1], ".hdf5", &test_cnt, 1);
     if (!file_paths)
     {
         return EXIT_FAILURE;

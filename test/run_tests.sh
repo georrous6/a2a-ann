@@ -15,14 +15,7 @@ fi
 # Check if the test directory exists or is empty
 if [ ! -d "$TEST_DIR" ] || [ -z "$(ls -A "$TEST_DIR" 2>/dev/null)" ]; then
     echo "Generating test files..."
-    matlab -batch "generate_tests('$TEST_DIR'); exit;"
-    MATLAB_STATUS=$?
-    
-    if [ "$MATLAB_STATUS" -ne 0 ]; then
-        echo "Error: MATLAB script to generate test files failed."
-        exit 1
-    fi
-    
+    python3 generate_tests.py 
     echo "Test files generated successfully."
 fi
 
