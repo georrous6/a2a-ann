@@ -10,15 +10,23 @@
     #define GEMM cblas_sgemm
     #define DOT cblas_sdot
     #define SQRT sqrtf
-    #define ZERO 0.0f
+    #define SUFFIX(X) X##f
     #define INF FLT_MAX
 #else
     #define DTYPE double
     #define GEMM cblas_dgemm
     #define DOT cblas_ddot
     #define SQRT sqrt
-    #define ZERO 0.0
+    #define SUFFIX(X) X
     #define INF DBL_MAX
 #endif
 
-#endif // TEMPLATE_DEFINITIONS_H
+#ifdef DEBUG_CONFIG
+    #define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
+    #define DEBUG_ASSERT(cond, msg) if (!(cond)) { fprintf(stderr, "Assertion failed: %s\n", msg); abort(); }
+#else
+    #define DEBUG_PRINT(...) ((void)0)
+    #define DEBUG_ASSERT(cond, msg) ((void)0)
+#endif
+
+#endif // ANN_CONFIG_H

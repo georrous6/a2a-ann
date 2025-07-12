@@ -52,7 +52,7 @@ int ann_get_num_threads(void) {
 
 
 static DTYPE distance_squared(const DTYPE* a, const DTYPE* b, int L) {
-    DTYPE dist = ZERO;
+    DTYPE dist = SUFFIX(0.0);
     for (int i = 0; i < L; ++i) {
         DTYPE diff = a[i] - b[i];
         dist += diff * diff;
@@ -130,7 +130,7 @@ static int kmeans(const DTYPE* data, int N, int L, int K,
 
         // Reset centroid accumulators
         memset(counts, 0, sizeof(int) * K);
-        for (int i = 0; i < K * L; ++i) new_centroids[i] = ZERO;
+        for (int i = 0; i < K * L; ++i) new_centroids[i] = SUFFIX(0.0);
 
         // For each cluster k, recompute its centroid as the mean of 
         // all points assigned to it.

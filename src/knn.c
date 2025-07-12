@@ -171,7 +171,7 @@ static int alloc_memory(DTYPE **D_all_block, int **IDX_all_block, DTYPE **sqrmag
         *MAX_QUERIES_MEMORY = (max_allocable_memory - N * sizeof(DTYPE)) / 
                             (N * sizeof(int) + N * sizeof(DTYPE) + sizeof(DTYPE));
 
-        printf("Too large distance matrix. Max queries per block: %d\n", *MAX_QUERIES_MEMORY);
+        DEBUG_PRINT("Too large distance matrix. Max queries per block: %d\n", *MAX_QUERIES_MEMORY);
     }
 
     if (*MAX_QUERIES_MEMORY < 1) 
@@ -202,7 +202,7 @@ static int alloc_memory(DTYPE **D_all_block, int **IDX_all_block, DTYPE **sqrmag
 
 static void knnTaskExec(const knnTask *task)
 {
-    printf("Thread %lu executes task with %d queries...\n", pthread_self(), task->QUERIES_NUM_THREAD);
+    DEBUG_PRINT("Thread %lu executes task with %d queries...\n", pthread_self(), task->QUERIES_NUM_THREAD);
     DTYPE *D_all_block = task->D_all_block;
     int *IDX_all_block = task->IDX_all_block;
     const DTYPE *sqrmag_C = task->sqrmag_C;
@@ -217,7 +217,7 @@ static void knnTaskExec(const knnTask *task)
     const int q_index_thread = task->q_index_thread;
 
     // compute D = -2*Q*C'
-    GEMM(CblasRowMajor, CblasNoTrans, CblasTrans, QUERIES_NUM_THREAD, N, L, -2.0, Q + q_index * L, L, C, L, ZERO, D_all_block + q_index_thread * N, N);
+    GEMM(CblasRowMajor, CblasNoTrans, CblasTrans, QUERIES_NUM_THREAD, N, L, SUFFIX(-2.0), Q + q_index * L, L, C, L, SUFFIX(0.0), D_all_block + q_index_thread * N, N);
 
     // compute the distance matrix D by applying the formula D = sqrt(C.^2 -2*Q*C' + (Q.^2)')
     for (int i = 0; i < QUERIES_NUM_THREAD; i++)
@@ -234,7 +234,7 @@ static void knnTaskExec(const knnTask *task)
         qselect(D_all_block + (i + q_index_thread) * N, IDX_all_block + (i + q_index_thread) * N, 0, N - 1, K);
     }
 
-    printf("Thread %lu finished task with %d queries...\n", pthread_self(), task->QUERIES_NUM_THREAD);
+    DEBUG_PRINT("Thread %lu finished task with %d queries...\n", pthread_self(), task->QUERIES_NUM_THREAD);
 }
 
 
@@ -248,15 +248,15 @@ static void *knnThreadStart(void *pool)
         pthread_mutex_lock(&mutexQueue);
         while (Queue_isEmpty(queue) && isActive)
         {
-            printf("Thread %lu waiting...\n", pthread_self());
+            DEBUG_PRINT("Thread %lu waiting...\n", pthread_self());
             pthread_cond_wait(&condQueue, &mutexQueue);
         }
-        printf("Thread %lu woke up...\n", pthread_self());
+        DEBUG_PRINT("Thread %lu woke up...\n", pthread_self());
 
         if (!isActive)  // Check again after waiting to exit if flag has changed
         {
             pthread_mutex_unlock(&mutexQueue);
-            printf("Thread %lu exiting...\n", pthread_self());
+            DEBUG_PRINT("Thread %lu exiting...\n", pthread_self());
             break;
         }
 
@@ -268,11 +268,11 @@ static void *knnThreadStart(void *pool)
 
         pthread_mutex_lock(&mutexQueue);
         runningTasks--;
-        printf("Running tasks: %d\n", runningTasks);
+        DEBUG_PRINT("Running tasks: %d\n", runningTasks);
         if (runningTasks == 0)
         {
             // Signal main thread that all tasks for the current block are done
-            printf("All tasks for current block completed.\n");
+            DEBUG_PRINT("All tasks for current block completed.\n");
             pthread_cond_signal(&condTasksComplete);
         }
         pthread_mutex_unlock(&mutexQueue);
@@ -376,7 +376,7 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
             sqrmag_Q_block[i] = DOT(L, Q + (i + q_index) * L, 1, Q + (i + q_index) * L, 1);
         }
         
-        printf("\nThreads: %d (OpenBLAS threads: %d)\n", NTHREADS, openblas_get_num_threads());
+        DEBUG_PRINT("\nThreads: %d (OpenBLAS threads: %d)\n", NTHREADS, openblas_get_num_threads());
         if (NTHREADS == 1)  // no multithreading
         {
             knnTask task = {
@@ -455,7 +455,7 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
                 
             // Wait for all tasks in the current block to finish
             pthread_mutex_lock(&mutexQueue);
-            printf("Waiting for %d tasks to complete...\n", runningTasks);
+            DEBUG_PRINT("Waiting for %d tasks to complete...\n", runningTasks);
             while (runningTasks > 0)
             {
                 pthread_cond_wait(&condTasksComplete, &mutexQueue);
