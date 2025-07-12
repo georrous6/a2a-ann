@@ -28,9 +28,6 @@ The library is optimized for multicore systems using:
 - **`benchmark/`**  
   Contains benchmarking tools and implementations for both k-NN and A2A-ANN algorithms.
 
-- **`data/`**  
-  Sample datasets and resources used for testing and benchmarking.
-
 - **`docs/`**  
   Documentation, figures, and plots generated from benchmark results.
 
@@ -100,10 +97,10 @@ After building in `DEBUG` mode, run the benchmark script
 ```bash
 cd benchmark/knn-benchmark
 chmod +x run_knn_benchmarks.sh
-./run_knn_benchmarks.sh ../../data/fashion-mnist-784-euclidean.hdf5
+./run_knn_benchmarks.sh <path/to/dataset>
 ```
 - The benchmark output will be saved to: `benchmark/knn-benchmark/knn_benchmark_output.mat`
-The benchmark plot will be saved to: `docs/figures/throughtput_vs_threads.png`. 
+- The benchmark plot will be saved to: `docs/figures/throughtput_vs_threads.png`. 
 
 You may also run benchmarks using a custom .hdf5 dataset. The dataset must include the 
 following fields:
@@ -112,11 +109,12 @@ following fields:
 - `/test`: Query matrix, single precision, row-major order
 - `/neighbors`: Ground truth indices (int32), row-major order
 
-[knn benchmarks](docs/figures/knn_throughput_vs_threads.png)
+![knn benchmarks](docs/figures/knn_throughput_vs_threads.png)
 
 ### ANN Benchmarks
+Again, after building in `DEBUG` mode, run the following
 ```bash
 cd benchmark/ann-benchmark
 chmod +x run_ann_benchmarks.sh
-./run_ann_benchmarks.sh ../../data/fashion-mnist-784-euclidean.hdf5
+./run_ann_benchmarks.sh <path/to/dataset>
 ```
