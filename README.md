@@ -74,7 +74,7 @@ cmake --build build
 ```
 You have also to install the dependencies for the python scripts:
 ```bash
-pip install requirements.txt
+pip install -r requirements.txt
 ```
 
 ## Running Tests
