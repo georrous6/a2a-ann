@@ -1,4 +1,8 @@
 # all2all-ann
+---
+![Build Status](https://github.com/georrous6/all2all-ann/actions/workflows/ci-build.yml/badge.svg)
+![Test Status](https://github.com/georrous6/all2all-ann/actions/workflows/ci-test.yml/badge.svg)
+
 
 **all2all-ann** is a high-performance C library for solving the **All-to-All Approximate Nearest Neighbors (A2A-ANN)** problem. It includes highly parallelized implementations of both:
 

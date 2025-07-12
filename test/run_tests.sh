@@ -16,6 +16,11 @@ fi
 if [ ! -d "$TEST_DIR" ] || [ -z "$(ls -A "$TEST_DIR" 2>/dev/null)" ]; then
     echo "Generating test files..."
     python3 generate_tests.py 
+    if [ $? -ne 0 ]; then
+        echo "Error: Python script 'generate_tests.py' failed."
+        exit 1
+    fi
+
     echo "Test files generated successfully."
 fi
 

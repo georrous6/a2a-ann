@@ -18,7 +18,7 @@ void setColor(const char *colorCode)
 #define BOLD_BLUE      "\033[1;34m"
 
 
-int test_case(const char *filename, double tolerance, int *passed)
+int test_case(const char *filename, double tolerance)
 {
     setColor(BOLD_BLUE);
     printf("Running test %s ...       ", filename);
@@ -27,7 +27,6 @@ int test_case(const char *filename, double tolerance, int *passed)
     double *C = NULL, *Q = NULL, *my_D = NULL, *test_D = NULL;
     int *K = NULL, *test_IDX = NULL, *my_IDX = NULL;
     int status = EXIT_FAILURE;
-    *passed = 0;
 
     // load corpus matrix from file
     C = (double *)load_hdf5(filename, "C", &N, &L); if (!C) goto cleanup;
@@ -51,10 +50,14 @@ int test_case(const char *filename, double tolerance, int *passed)
     // memory allocation for the estimated index matrix
     my_IDX = (int *)malloc(M * (*K) * sizeof(int)); if (!my_IDX) goto cleanup;
 
+    if (!C || !Q || !K || !test_D || !test_IDX || !my_D || !my_IDX)
+    {
+        fprintf(stderr, "Error allocating memory\n");
+        goto cleanup;
+    }
+
     knn_set_num_threads(-1);
     if (knnsearch(Q, C, my_IDX, my_D, M, N, L, *K, 1)) goto cleanup;
-
-    status = EXIT_SUCCESS;
 
     // test the output with the estimated one
     double x, y;
@@ -84,7 +87,7 @@ int test_case(const char *filename, double tolerance, int *passed)
         }
     }
 
-    *passed = 1; 
+    status = EXIT_SUCCESS;
 
 cleanup:
     if (C) free(C);
@@ -108,60 +111,48 @@ int main(int argc, char *argv[])
     }
 
 
+    int status = EXIT_FAILURE;
     size_t cnt_passed = 0;
     size_t test_cnt;
-    int passed;
     char **file_paths = get_file_paths(argv[1], ".hdf5", &test_cnt, 1);
     if (!file_paths)
     {
         return EXIT_FAILURE;
     }
 
-    for (size_t i = 0; i < test_cnt; i++) 
-    {
-        if (test_case(file_paths[i], 1e-6, &passed) == EXIT_SUCCESS)
-        {
-            if (passed)
-            {
-                setColor(BOLD_GREEN);
-                printf("Passed\n");
-                cnt_passed++;
-                setColor(DEFAULT);
-            }
-            else
-            {
-                setColor(BOLD_RED);
-                printf("Failed\n");
-                setColor(DEFAULT);
-            }
+    for (size_t i = 0; i < test_cnt; i++) {
+
+        if (test_case(file_paths[i], 1e-6) == EXIT_SUCCESS) {
+            setColor(BOLD_GREEN);
+            printf("Passed\n");
+            cnt_passed++;
+            setColor(DEFAULT);
         }
-        else
-        {
-            fprintf(stderr, "An error occured\n");
-            break;
+        else {
+            setColor(BOLD_RED);
+            printf("Failed\n");
+            setColor(DEFAULT);
         }
     }
 
-    if (cnt_passed == test_cnt)
-    {
+    if (cnt_passed == test_cnt) {
         setColor(BOLD_GREEN);
         printf("\n==========================\n");
         printf("All tests passed (%zu/%zu)\n", cnt_passed, test_cnt);
         setColor(DEFAULT);
+        status = EXIT_SUCCESS;
     }
-    else
-    {
+    else {
         printf("\n==========================\n");
         printf("Tests passed: %zu/%zu\n", cnt_passed, test_cnt);
     }
 
 
     // free allocated memory
-    for (size_t i = 0; i < test_cnt; i++)
-    {
+    for (size_t i = 0; i < test_cnt; i++) {
         free(file_paths[i]);
     }
     free(file_paths);
 
-    return EXIT_SUCCESS;
+    return status;
 }
