@@ -22,7 +22,10 @@ def save_test_hdf5(C, Q, K, test_D, test_IDX, test_name, test_index):
         f.create_dataset('K', data=np.array(K, dtype=np.int32).reshape(1, 1))
         f.create_dataset('test_D', data=test_D)
         f.create_dataset('test_IDX', data=test_IDX.astype(np.int32))
-        f.create_dataset('test_name', data=np.string_(test_name))
+
+        # Use UTF-8 encoded string instead of np.string_ (removed in NumPy 2.0)
+        dt = h5py.string_dtype(encoding='utf-8')
+        f.create_dataset('test_name', data=test_name, dtype=dt)
 
 def run_and_save(C, Q, K, test_name, test_index):
     C = np.atleast_2d(C)
