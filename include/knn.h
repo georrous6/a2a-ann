@@ -5,7 +5,7 @@
 #include "template_definitions.h"
 #include <stdatomic.h>
 
-#define KNN_MAX_MEMORY_USAGE_RATIO 0.8        // Maximum memory usage ratio
+#define KNN_MAX_MEMORY_USAGE_RATIO 0.5        // Maximum memory usage ratio
 #define KNN_MIN_QUERIES_PER_BLOCK 1           // Minimum number of queries per block
 
 static atomic_int KNN_NUM_THREADS = 1;

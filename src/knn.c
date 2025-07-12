@@ -20,16 +20,16 @@ static int runningTasks;                  // Holds the number of running tasks
 typedef struct knnTask {
     const DTYPE *C;
     const DTYPE *Q;
-    DTYPE *Dall;
-    int *IDXall;
+    DTYPE *D_all_block;
+    int *IDX_all_block;
     const DTYPE *sqrmag_C;
-    const DTYPE *sqrmag_Q;
+    const DTYPE *sqrmag_Q_block;
     const int K;
     const int N;
     const int L;
-    const int QUERIES_NUM;     // Number of queries for the task to proccess
-    const int q_index;         // Index of the first query to be proccessed
-    const int q_index_thread;  // Index of the query to be proccesed inside a thread
+    const int QUERIES_NUM_THREAD;     // Number of queries for the task to proccess
+    const int q_index;                // Index of the first query to be proccessed
+    const int q_index_thread;         // Index of the query to be proccesed inside a thread
 } knnTask;
 
 
@@ -155,16 +155,61 @@ static void qsort_(DTYPE *arr, int *idx, int l, int r)
 }
 
 
+static int alloc_memory(DTYPE **D_all_block, int **IDX_all_block, DTYPE **sqrmag_Q_block, DTYPE **sqrmag_C, const int M, const int N, int *MAX_QUERIES_MEMORY)
+{
+    unsigned long available_memory = get_available_memory_bytes();
+    unsigned long max_allocable_memory = (unsigned long)(available_memory * KNN_MAX_MEMORY_USAGE_RATIO);
+
+    *MAX_QUERIES_MEMORY = M; 
+    unsigned long required_memory = (*MAX_QUERIES_MEMORY) * N * sizeof(int) +
+                                    (*MAX_QUERIES_MEMORY) * N * sizeof(DTYPE) +
+                                    (*MAX_QUERIES_MEMORY) * sizeof(DTYPE) +
+                                    N * sizeof(DTYPE);
+    
+    if (required_memory > max_allocable_memory)
+    {
+        *MAX_QUERIES_MEMORY = (max_allocable_memory - N * sizeof(DTYPE)) / 
+                            (N * sizeof(int) + N * sizeof(DTYPE) + sizeof(DTYPE));
+
+        printf("Too large distance matrix. Max queries per block: %d\n", *MAX_QUERIES_MEMORY);
+    }
+
+    if (*MAX_QUERIES_MEMORY < 1) 
+    {
+        fprintf(stderr, "Error: Insufficient memory for minimum block size.\n");
+        return EXIT_FAILURE;
+    }
+
+
+    *IDX_all_block = (int *)malloc((*MAX_QUERIES_MEMORY) * N * sizeof(int));
+    *D_all_block = (DTYPE *)malloc((*MAX_QUERIES_MEMORY) * N * sizeof(DTYPE));
+    *sqrmag_Q_block = (DTYPE *)malloc((*MAX_QUERIES_MEMORY) * sizeof(DTYPE));
+    *sqrmag_C = (DTYPE *)malloc(N * sizeof(DTYPE));
+
+    if ((*IDX_all_block) && (*D_all_block) && (*sqrmag_C) && (*sqrmag_Q_block))
+    {
+        return EXIT_SUCCESS;
+    }
+
+    if (*sqrmag_C) free(*sqrmag_C);
+    if (*sqrmag_Q_block) free(*sqrmag_Q_block);
+    if (*D_all_block) free(*D_all_block);
+    if (*IDX_all_block) free(*IDX_all_block);
+
+    return EXIT_FAILURE;
+}
+
+
 static void knnTaskExec(const knnTask *task)
 {
-    printf("Thread executes task with %d queries...\n", task->QUERIES_NUM);
-    DTYPE *Dall = task->Dall;
-    int *IDXall = task->IDXall;
+    printf("Thread %lu executes task with %d queries...\n", pthread_self(), task->QUERIES_NUM_THREAD);
+    DTYPE *D_all_block = task->D_all_block;
+    int *IDX_all_block = task->IDX_all_block;
     const DTYPE *sqrmag_C = task->sqrmag_C;
-    const DTYPE *sqrmag_Q = task->sqrmag_Q;
+    const DTYPE *sqrmag_Q_block = task->sqrmag_Q_block;
     const DTYPE *C = task->C;
     const DTYPE *Q = task->Q;
-    const int QUERIES_NUM = task->QUERIES_NUM;
+    const int QUERIES_NUM_THREAD = task->QUERIES_NUM_THREAD;
     const int N = task->N;
     const int K = task->K;
     const int L = task->L;
@@ -172,24 +217,24 @@ static void knnTaskExec(const knnTask *task)
     const int q_index_thread = task->q_index_thread;
 
     // compute D = -2*Q*C'
-    GEMM(CblasRowMajor, CblasNoTrans, CblasTrans, QUERIES_NUM, N, L, -2.0, Q + q_index * L, L, C, L, ZERO, Dall + q_index_thread * N, N);
+    GEMM(CblasRowMajor, CblasNoTrans, CblasTrans, QUERIES_NUM_THREAD, N, L, -2.0, Q + q_index * L, L, C, L, ZERO, D_all_block + q_index_thread * N, N);
 
     // compute the distance matrix D by applying the formula D = sqrt(C.^2 -2*Q*C' + (Q.^2)')
-    for (int i = 0; i < QUERIES_NUM; i++)
+    for (int i = 0; i < QUERIES_NUM_THREAD; i++)
     {
         for (int j = 0; j < N; j++)
         {
-            Dall[(i + q_index_thread) * N + j] += sqrmag_Q[i + q_index] + sqrmag_C[j];
+            D_all_block[(i + q_index_thread) * N + j] += sqrmag_Q_block[i + q_index_thread] + sqrmag_C[j];
         }
     }
 
     // apply Quick Select algorithm for each row of distance matrix
-    for (int i = 0; i < QUERIES_NUM; i++)
+    for (int i = 0; i < QUERIES_NUM_THREAD; i++)
     {
-        qselect(Dall + (i + q_index_thread) * N, IDXall + (i + q_index_thread) * N, 0, N - 1, K);
+        qselect(D_all_block + (i + q_index_thread) * N, IDX_all_block + (i + q_index_thread) * N, 0, N - 1, K);
     }
 
-    printf("Thread finished task with %d queries.\n", task->QUERIES_NUM);
+    printf("Thread %lu finished task with %d queries...\n", pthread_self(), task->QUERIES_NUM_THREAD);
 }
 
 
@@ -203,12 +248,15 @@ static void *knnThreadStart(void *pool)
         pthread_mutex_lock(&mutexQueue);
         while (Queue_isEmpty(queue) && isActive)
         {
+            printf("Thread %lu waiting...\n", pthread_self());
             pthread_cond_wait(&condQueue, &mutexQueue);
         }
+        printf("Thread %lu woke up...\n", pthread_self());
 
         if (!isActive)  // Check again after waiting to exit if flag has changed
         {
             pthread_mutex_unlock(&mutexQueue);
+            printf("Thread %lu exiting...\n", pthread_self());
             break;
         }
 
@@ -234,58 +282,12 @@ static void *knnThreadStart(void *pool)
 }
 
 
-static int alloc_memory(DTYPE **Dall, int **IDXall, DTYPE **sqrmag_Q, DTYPE **sqrmag_C, const int M, const int N, int *MBLOCK_MAX_SIZE)
-{
-    unsigned long available_memory = get_available_memory_bytes();
-    unsigned long max_allocable_memory = (unsigned long)(available_memory * KNN_MAX_MEMORY_USAGE_RATIO);
-
-    *MBLOCK_MAX_SIZE = M; 
-    unsigned long required_memory = (*MBLOCK_MAX_SIZE) * N * sizeof(int) +
-                                    (*MBLOCK_MAX_SIZE) * N * sizeof(DTYPE) +
-                                    (*MBLOCK_MAX_SIZE) * sizeof(DTYPE) +
-                                    N * sizeof(DTYPE);
-    
-    if (required_memory > max_allocable_memory)
-    {
-        *MBLOCK_MAX_SIZE = (max_allocable_memory - N * sizeof(DTYPE)) / 
-                            (N * sizeof(int) + N * sizeof(DTYPE) + sizeof(DTYPE));
-
-        printf("Too large distance matrix. Max queries per block: %d\n", *MBLOCK_MAX_SIZE);
-    }
-
-    if (*MBLOCK_MAX_SIZE < 1) 
-    {
-        fprintf(stderr, "Error: Insufficient memory for minimum block size.\n");
-        return EXIT_FAILURE;
-    }
-
-
-
-    *IDXall = (int *)malloc((*MBLOCK_MAX_SIZE) * N * sizeof(int));
-    *Dall = (DTYPE *)malloc((*MBLOCK_MAX_SIZE) * N * sizeof(DTYPE));
-    *sqrmag_Q = (DTYPE *)malloc((*MBLOCK_MAX_SIZE) * sizeof(DTYPE));
-    *sqrmag_C = (DTYPE *)malloc(N * sizeof(DTYPE));
-
-    if ((*IDXall) && (*Dall) && (*sqrmag_C) && (*sqrmag_Q))
-    {
-        return EXIT_SUCCESS;
-    }
-
-    if (*sqrmag_C) free(*sqrmag_C);
-    if (*sqrmag_Q) free(*sqrmag_Q);
-    if (*Dall) free(*Dall);
-    if (*IDXall) free(*IDXall);
-
-    return EXIT_FAILURE;
-}
-
-
 int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, const int N, const int L, const int K, const int sorted)
 {
     isActive = 1;
     runningTasks = 0;
-    DTYPE *Dall = NULL, *sqrmag_Q = NULL, *sqrmag_C = NULL;
-    int *IDXall = NULL;
+    DTYPE *D_all_block = NULL, *sqrmag_Q_block = NULL, *sqrmag_C = NULL;
+    int *IDX_all_block = NULL;
     int MAX_QUERIES_MEMORY;  // The maximum number of queries that can be stored in memory
     int status = EXIT_FAILURE;
     if (K <= 0)
@@ -296,7 +298,7 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
 
     // Allocate the appropriate amount of memory for the matrices and compute the
     // maximum number of queries that can be proccessed
-    if (alloc_memory(&Dall, &IDXall, &sqrmag_Q, &sqrmag_C, M, N, &MAX_QUERIES_MEMORY))
+    if (alloc_memory(&D_all_block, &IDX_all_block, &sqrmag_Q_block, &sqrmag_C, M, N, &MAX_QUERIES_MEMORY))
     {
         fprintf(stderr, "knnsearch: Error allocating memory\n");
         return status;
@@ -344,33 +346,34 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
         }
     }
 
+    // Pre compute the square of magnitudes of the row vectors of matrix C
+    // since it is shared accross threads
+    for (int i = 0; i < N; i++)
+    {
+        sqrmag_C[i] = DOT(L, C + i * L, 1, C + i * L, 1);
+    }
+
 
     // Iterate through each block of queries
     int q_index = 0;
     while (q_index < M) 
     {
-        const int QUERIES_NUM = (M - q_index) > MAX_QUERIES_MEMORY ? MAX_QUERIES_MEMORY : (M - q_index);
+        // number of queries per block
+        const int QUERIES_NUM_BLOCK = (M - q_index) > MAX_QUERIES_MEMORY ? MAX_QUERIES_MEMORY : (M - q_index);
 
         // initialize index matrix
-        for (int i = 0; i < QUERIES_NUM; i++)
+        for (int i = 0; i < QUERIES_NUM_BLOCK; i++)
         {
             for (int j = 0; j < N; j++)
             {
-                IDXall[i * N + j] = j;
+                IDX_all_block[i * N + j] = j;
             }
         }
 
-        // Pre compute the square of magnitudes of the row vectors of matrix C
-        // since it is shared accross threads
-        for (int i = 0; i < N; i++)
+        // Compute the square of magnitudes of the row vectors of matrix Q for this block
+        for (int i = 0; i < QUERIES_NUM_BLOCK; i++)
         {
-            sqrmag_C[i] = DOT(L, C + i * L, 1, C + i * L, 1);
-        }
-
-        // Pre compute the square of magnitudes of the row vectors of matrix Q
-        for (int i = 0; i < QUERIES_NUM; i++)
-        {
-            sqrmag_Q[i] = DOT(L, Q + (i + q_index) * L, 1, Q + (i + q_index) * L, 1);
+            sqrmag_Q_block[i] = DOT(L, Q + (i + q_index) * L, 1, Q + (i + q_index) * L, 1);
         }
         
         printf("\nThreads: %d (OpenBLAS threads: %d)\n", NTHREADS, openblas_get_num_threads());
@@ -379,11 +382,11 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
             knnTask task = {
                 .C = C, 
                 .Q = Q, 
-                .Dall = Dall,
-                .IDXall = IDXall,
-                .QUERIES_NUM = QUERIES_NUM,
+                .D_all_block = D_all_block,
+                .IDX_all_block = IDX_all_block,
+                .QUERIES_NUM_THREAD = QUERIES_NUM_BLOCK,
                 .sqrmag_C = sqrmag_C,
-                .sqrmag_Q = sqrmag_Q,
+                .sqrmag_Q_block = sqrmag_Q_block,
                 .N = N,
                 .L = L,
                 .K = K,
@@ -395,16 +398,16 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
         else  // multithreading
         {
             // Create the tasks and add them to the queue
-            if (QUERIES_NUM / NTHREADS == 0)  // create only one task
+            if (QUERIES_NUM_BLOCK / NTHREADS == 0)  // create only one task
             {
                 knnTask task = {
                     .C = C, 
                     .Q = Q, 
-                    .Dall = Dall,
-                    .IDXall = IDXall,
-                    .QUERIES_NUM = QUERIES_NUM,
+                    .D_all_block = D_all_block,
+                    .IDX_all_block = IDX_all_block,
+                    .QUERIES_NUM_THREAD = QUERIES_NUM_BLOCK,
                     .sqrmag_C = sqrmag_C,
-                    .sqrmag_Q = sqrmag_Q,
+                    .sqrmag_Q_block = sqrmag_Q_block,
                     .N = N,
                     .L = L,
                     .K = K,
@@ -416,12 +419,12 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
             }
             else  // split workload accross all the threads
             {
-                int remainder = QUERIES_NUM % NTHREADS;
+                int remainder = QUERIES_NUM_BLOCK % NTHREADS;
                 int QUERIES_NUM_THREAD = 0;  // number of queries being proccesed on each thread
                 int q_index_thread = 0;  // indexing of the queries in each block of queries
                 for (int t = 0; t < NTHREADS; t++)
                 {
-                    QUERIES_NUM_THREAD = QUERIES_NUM / NTHREADS;
+                    QUERIES_NUM_THREAD = QUERIES_NUM_BLOCK / NTHREADS;
                     if (remainder > 0)
                     {
                         remainder--;
@@ -431,11 +434,11 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
                     knnTask task = {
                         .C = C, 
                         .Q = Q, 
-                        .Dall = Dall,
-                        .IDXall = IDXall,
-                        .QUERIES_NUM = QUERIES_NUM_THREAD,
+                        .D_all_block = D_all_block,
+                        .IDX_all_block = IDX_all_block,
+                        .QUERIES_NUM_THREAD = QUERIES_NUM_THREAD,
                         .sqrmag_C = sqrmag_C,
-                        .sqrmag_Q = sqrmag_Q,
+                        .sqrmag_Q_block = sqrmag_Q_block,
                         .N = N,
                         .L = L,
                         .K = K,
@@ -461,13 +464,13 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
         }
 
         // now copy the first K elements of each row of matrices
-        // Dall, IDXall to D and IDX respectivelly
-        for (int i = 0; i < QUERIES_NUM; i++)
+        // D_all_block, IDX_all_block to D and IDX respectivelly
+        for (int i = 0; i < QUERIES_NUM_BLOCK; i++)
         {
             for (int j = 0; j < K; j++)
             {
-                D[(q_index + i) * K + j] = SQRT(Dall[i * N + j]);
-                IDX[(q_index + i) * K + j] = IDXall[i * N + j];  // zero-based indexing
+                D[(q_index + i) * K + j] = SQRT(D_all_block[i * N + j]);
+                IDX[(q_index + i) * K + j] = IDX_all_block[i * N + j];  // zero-based indexing
             }
 
             // sort each row of the distance matrix
@@ -477,7 +480,7 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
             }
         }
 
-        q_index += QUERIES_NUM;
+        q_index += QUERIES_NUM_BLOCK;  // move to the next block of queries
     }
 
     if (NTHREADS > 1)
@@ -508,8 +511,8 @@ cleanup:
         if (threads) free(threads);
     }
     free(sqrmag_C);
-    free(sqrmag_Q);
-    free(Dall);
-    free(IDXall);
+    free(sqrmag_Q_block);
+    free(D_all_block);
+    free(IDX_all_block);
     return status;
 }
