@@ -100,7 +100,7 @@ chmod +x run_knn_benchmarks.sh
 ./run_knn_benchmarks.sh <path/to/dataset>
 ```
 - The benchmark output will be saved to: `benchmark/knn-benchmark/knn_benchmark_output.mat`
-- The benchmark plot will be saved to: `docs/figures/throughtput_vs_threads.png`. 
+- The benchmark plot will be saved to: `docs/figures/throughput_vs_threads.png`. 
 
 You may also run benchmarks using a custom .hdf5 dataset. The dataset must include the 
 following fields:

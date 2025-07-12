@@ -41,7 +41,7 @@ function plot_knn_benchmarks(matFilePath)
     
     xlabel('Number of Threads');
     ylabel('Queries per Second');
-    title(sprintf('Queries per Second vs Number of Threads (System Cores: %d)', n_cores));
+    title(sprintf('KNN: Throughput vs Number of Threads (System Cores: %d)', n_cores));
     legend({sprintf('CBLAS threads: %d', n_cores), 'CBLAS threads: 1'}, 'Location', 'southeast');
 
     outputDir = fullfile('..', '..', 'docs', 'figures');
