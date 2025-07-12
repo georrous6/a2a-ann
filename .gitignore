@@ -68,5 +68,5 @@ config.status
 *.mat
 *.hdf5
 
-# Debug Directories
-debug/
+# Temporary Directories
+tmp/

@@ -2,16 +2,16 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Build Tests",
+            "label": "Build Debug",
             "type": "shell",
-            "command": "cmake -S . -B build -DBUILD_CONFIGURATION=TEST -DMATLAB_ROOT=/usr/local/MATLAB/R2024b && cmake --build build",
+            "command": "cmake -S . -B build -DBUILD_CONFIGURATION=DEBUG -DMATLAB_ROOT=/usr/local/MATLAB/R2024b && cmake --build build",
             "problemMatcher": [],
             "group": "build"
         },
         {
-            "label": "Build Benchmarks",
+            "label": "Build Release",
             "type": "shell",
-            "command": "cmake -S . -B build -DBUILD_CONFIGURATION=BENCHMARK -DMATLAB_ROOT=/usr/local/MATLAB/R2024b && cmake --build build",
+            "command": "cmake -S . -B build -DBUILD_CONFIGURATION=RELEASE -DPRECISION=DOUBLE && cmake --build build",
             "problemMatcher": [],
             "group": "build"
         }

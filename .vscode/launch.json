@@ -10,18 +10,31 @@
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/test",
             "MIMode": "gdb",
-            "preLaunchTask": "Build Tests"
+            "preLaunchTask": "Build Debug"
         },
         {
-            "name": "Run Benchmarks",
+            "name": "Run KNN Benchmarks",
             "type": "cppdbg",
             "request": "launch",
             "program": "/usr/bin/bash",
-            "args": ["${workspaceFolder}/benchmark/run_benchmarks.sh", "datasets/fashion-mnist-784-euclidean.hdf5"],
+            "args": ["${workspaceFolder}/benchmark/knn-benchmark/run_knn_benchmarks.sh", 
+                "${workspaceFolder}/data/fashion-mnist-784-euclidean.hdf5"],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/benchmark",
+            "cwd": "${workspaceFolder}/benchmark/knn-benchmark",
             "MIMode": "gdb",
-            "preLaunchTask": "Build Benchmarks"
+            "preLaunchTask": "Build Debug"
+        },
+        {
+            "name": "Run ANN Benchmarks",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "/usr/bin/bash",
+            "args": ["${workspaceFolder}/benchmark/ann-benchmark/run_ann_benchmarks.sh", 
+                "${workspaceFolder}/data/fashion-mnist-784-euclidean.hdf5"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/benchmark/ann-benchmark",
+            "MIMode": "gdb",
+            "preLaunchTask": "Build Debug"
         }
     ]
 }

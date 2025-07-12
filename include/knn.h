@@ -2,7 +2,7 @@
 #define KNN_H
 
 #include "Queue.h"
-#include "template_definitions.h"
+#include "ann_config.h"
 #include <stdatomic.h>
 
 #define KNN_MAX_MEMORY_USAGE_RATIO 0.5        // Maximum memory usage ratio

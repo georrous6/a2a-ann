@@ -1,7 +1,7 @@
 #ifndef A2A_ANN_H
 #define A2A_ANN_H
 
-#include "template_definitions.h"
+#include "ann_config.h"
 #include <stdatomic.h>
 
 static atomic_int ANN_NUM_THREADS = 1;

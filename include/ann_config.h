@@ -5,7 +5,7 @@
 #include <cblas.h>
 #include <math.h>
 
-#ifdef FLOAT_DTYPE
+#ifdef SINGLE_PRECISION
     #define DTYPE float
     #define GEMM cblas_sgemm
     #define DOT cblas_sdot

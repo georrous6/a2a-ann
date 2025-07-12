@@ -1,12 +1,14 @@
 # all2all-ann
 
-A high-performance C library for solving the **All-to-All Approximate Nearest Neighbors** 
-problem with parallelization support. The library leverages **POSIX Threads (pthreads)**, 
-**OpenMP**, and **OpenCilk** to efficiently compute approximate nearest neighbors across 
-large datasets.  
+**all2all-ann** is a high-performance C library for solving the **All-to-All Approximate Nearest Neighbors (A2A-ANN)** problem. It includes highly parallelized implementations of both:
 
-Additionally, it provides a parallelized implementation of the **k-Nearest Neighbors** 
-algorithm using **pthreads** for scalable performance on multicore systems.
+- **All-to-All Approximate Nearest Neighbors**
+- **k-Nearest Neighbors (k-NN)**
+
+The library is optimized for multicore systems using:
+- **POSIX Threads (pthreads)**
+- **OpenBLAS**
+- Optional: **MATLAB** and **HDF5** for testing and benchmarking utilities
 
 ---
 
@@ -14,59 +16,107 @@ algorithm using **pthreads** for scalable performance on multicore systems.
 
 - **CMake** >= 3.10
 - **OpenBLAS**
-- **MATLAB** (only for `TEST` and `BENCHMARK` configuration)
-- **HDF5** (only for `TEST` and `BENCHMARK` configuration)
+- **MATLAB** (required for `DEBUG` configuration -- used in tests and benchmarks)
+- **HDF5** (required for `DEBUG` configuration)
+
+> *Attetion*: In `DEBUG` mode, `MATLAB_ROOT` must be specified via `-DMATLAB_ROOT=/path/to/MATLAB`.
 
 ---
 
-## Build with CMake
+## Project Structure
 
-The build process supports three mutually exclusive configurations:
+- **`benchmark/`**  
+  Contains benchmarking tools and implementations for both k-NN and A2A-ANN algorithms.
 
-| Configuration | Dependencies |
-|---------------|--------------|
-| `LIBRARY` (default) | OpenBLAS |
-| `TEST` | OpenBLAS + MATLAB + HDF5 |
-| `BENCHMARK` | OpenBLAS + MATLAB + HDF5 |
+- **`data/`**  
+  Sample datasets and resources used for testing and benchmarking.
 
-The configuration is selected via the `BUILD_CONFIGURATION`.
-According to your preffered configuration run:
+- **`docs/`**  
+  Documentation, figures, and plots generated from benchmark results.
 
-**Library only:**
+- **`include/`**  
+  Public header files for the core library.
+
+- **`src/`**  
+  Source files implementing the core functionality of the ANN and k-NN algorithms.
+
+- **`test/`**  
+  Unit and integration tests for verifying the k-NN implementation.
+
+- **`util/`**  
+  Shared utility functions and helper code used across tests and benchmarks.
+
+
+## Build Instructions
+
+This project supports two build configurations:
+
+| Build Type     | Description                           | Dependencies               |
+|----------------|---------------------------------------|----------------------------|
+| `RELEASE`      | Build the standalone library only     | OpenBLAS                   |
+| `DEBUG`        | Build tests and benchmarks (with MATLAB + HDF5 support) | OpenBLAS + MATLAB + HDF5 |
+
+You can select the build mode using the `BUILD_CONFIGURATION` flag.
+
+---
+
+### Building the Library (RELEASE)
+
+You can specify the precision of the library by setting the `PRECISION` flag to `SINGLE` or `DOUBLE`.
+The default configuration is `DOUBLE`.
+
 ```bash
-cmake -S . -B build -DBUILD_CONFIGURATION=LIBRARY
+cmake -S . -B build -DBUILD_CONFIGURATION=RELEASE -DPRECISION=SINGLE
 cmake --build build
 ```
+This will compile the static library `libann.a` in `build/`.
 
-**Library + tests:**
+### Building with Tests and Benchmarks (DEBUG)
+
 ```bash
-cmake -S . -B build -DBUILD_CONFIGURATION=TEST -DMATLAB_ROOT=/path/to/MATLAB/R2024b
+cmake -S . -B build -DBUILD_CONFIGURATION=DEBUG -DMATLAB_ROOT=/path/to/MATLAB/R2024b
 cmake --build build
 ```
-To run the tests type
+Replace `path/to/MATLAB/R2024b` with your actual MATLAB installation path -- 
+usually `usr/local/MATLAB/R2024b` on Linux.
+
+## Running Tests
+
+After building in `DEBUG` mode:
 ```bash
 cd test
 chmod +x run_tests.sh
 ./run_tests.sh
 ```
+This will automatically generate test files using MATLAB and run tests against those datasets to 
+verify correctness.
 
-**Library + benchmarks:**
+## Running Benchmarks
+Benchmarks were conducted on Ubuntu 22.04 LTS using a 4-core machine and the
+[MNIST dataset](https://github.com/erikbern/ann-benchmarks).
+
+### KNN Benchmarks
+After building in `DEBUG` mode, run the benchmark script
 ```bash
-cmake -S . -B build -DBUILD_CONFIGURATION=BENCHMARK -DMATLAB_ROOT=/path/to/MATLAB/R2024b
-cmake --build build
+cd benchmark/knn-benchmark
+chmod +x run_knn_benchmarks.sh
+./run_knn_benchmarks.sh ../../data/fashion-mnist-784-euclidean.hdf5
 ```
-To run the benchmarks you have to first download the [MNIST](https://github.com/erikbern/ann-benchmarks)
-dataset. Then run
+- The benchmark output will be saved to: `benchmark/knn-benchmark/knn_benchmark_output.mat`
+The benchmark plot will be saved to: `docs/figures/throughtput_vs_threads.png`. 
+
+You may also run benchmarks using a custom .hdf5 dataset. The dataset must include the 
+following fields:
+
+- `/train`: Corpus matrix, single precision, row-major order
+- `/test`: Query matrix, single precision, row-major order
+- `/neighbors`: Ground truth indices (int32), row-major order
+
+[knn benchmarks](docs/figures/knn_throughput_vs_threads.png)
+
+### ANN Benchmarks
 ```bash
-cd benchmark
-chmod +x run_benchmarks.sh
-./run_benchmarks.sh <path/to/mnist_dataset>
+cd benchmark/ann-benchmark
+chmod +x run_ann_benchmarks.sh
+./run_ann_benchmarks.sh ../../data/fashion-mnist-784-euclidean.hdf5
 ```
-
-## k-Nearest Neighbors Benchmarks
-
-The benchmarks are created at 4-core system in Ubuntu 22.04 LTS using the 
-MNIST dataset and the results are shown below
-
-![k-Nearest Neighbors Benchmark](docs/figures/knn_benchmarks.png)
-

@@ -2,7 +2,7 @@
 
 # Define variables
 SCRIPT_DIR=$(dirname "$0")  # Directory where this script is located
-TEST_DIR="$SCRIPT_DIR/test_files"  # Directory to look for test files
+TEST_DIR="$SCRIPT_DIR/test-files"  # Directory to look for test files
 EXECUTABLE_PATH="$SCRIPT_DIR/../build/tests"  # Path th the executable
 
 # Check if the executable file exists inside the build directory
