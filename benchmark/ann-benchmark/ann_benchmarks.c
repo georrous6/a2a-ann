@@ -39,11 +39,11 @@ int ann_benchmark(const char *filename, int *nthreads, int *num_clusters, const 
     float queries_per_sec[THREAD_CASES][CLUSTER_CASES];
 
     // load corpus matrix from file
-    C = (float *)load_matrix(filename, "/train_test", &N, &L); if (!C) goto cleanup;
+    C = (float *)load_hdf5(filename, "/train_test", &N, &L); if (!C) goto cleanup;
 
     // load expected indices matrix from file
     int a, b;
-    test_IDX = (int *)load_matrix(filename, "/train_test_neighbors", &a, &b); if (!test_IDX) goto cleanup;
+    test_IDX = (int *)load_hdf5(filename, "/train_test_neighbors", &a, &b); if (!test_IDX) goto cleanup;
     const int K = b;
 
     // memory allocation for the estimated distance matrix
@@ -93,10 +93,10 @@ int ann_benchmark(const char *filename, int *nthreads, int *num_clusters, const 
         }
     }
 
-    store_matrix(nthreads, "nthreads", 1, THREAD_CASES, output_file, INT_TYPE, 'w');
-    store_matrix(num_clusters, "num_clusters", 1, CLUSTER_CASES, output_file, INT_TYPE, 'a');
-    store_matrix(queries_per_sec, "queries_per_sec", THREAD_CASES, CLUSTER_CASES, output_file, FLOAT_TYPE, 'a');
-    store_matrix(recall, "recall", THREAD_CASES, CLUSTER_CASES, output_file, FLOAT_TYPE, 'a');
+    store_hdf5(nthreads, "nthreads", 1, THREAD_CASES, output_file, INT_TYPE, 'w');
+    store_hdf5(num_clusters, "num_clusters", 1, CLUSTER_CASES, output_file, INT_TYPE, 'a');
+    store_hdf5(queries_per_sec, "queries_per_sec", THREAD_CASES, CLUSTER_CASES, output_file, FLOAT_TYPE, 'a');
+    store_hdf5(recall, "recall", THREAD_CASES, CLUSTER_CASES, output_file, FLOAT_TYPE, 'a');
 
     status = EXIT_SUCCESS;
 

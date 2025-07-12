@@ -12,7 +12,7 @@ SCRIPT_DIR="$(dirname "$0")"                              # Directory where this
 EXECUTABLE_PATH="$SCRIPT_DIR/../../build/knn_benchmarks"  # Path to the executable
 
 # Construct benchmark output file name in the same directory as dataset
-BENCHMARK_OUTPUT="$SCRIPT_DIR/knn_benchmark_output.mat"
+BENCHMARK_OUTPUT="$SCRIPT_DIR/knn_benchmark_output.hdf5"
 
 # Check if the executable exists
 if [ ! -f "$EXECUTABLE_PATH" ]; then
@@ -35,6 +35,6 @@ if [ $? -ne 0 ]; then
 fi
 
 # Call the MATLAB function to plot results, passing the benchmark output file
-matlab -batch "plot_knn_benchmarks('$BENCHMARK_OUTPUT'); exit;"
+python3 plot_knn_benchmarks.py "$BENCHMARK_OUTPUT"
 
 echo "KNN benchmark completed successfully."

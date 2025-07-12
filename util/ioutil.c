@@ -1,7 +1,7 @@
 #include "ioutil.h"
-#include "mat.h"
 #include "hdf5.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdint.h>
@@ -11,7 +11,7 @@
 #include <sys/types.h>
 
 
-static void *readHDF5File(const char *file_name, const char *dataset_name, int *rows, int *cols) 
+void *load_hdf5(const char *file_name, const char *dataset_name, int *rows, int *cols) 
 {
     hid_t file_id, dataset_id, datatype_id, space_id;
     H5T_class_t type_class;
@@ -127,122 +127,7 @@ static void *readHDF5File(const char *file_name, const char *dataset_name, int *
 }
 
 
-static void *readMATFile(const char *filename, const char* matname, int* rows, int* cols)
-{
-    MATFile *matfp;
-    mxArray *matvar;
-    void *data = NULL;
-
-    // Open the MAT file
-    matfp = matOpen(filename, "r");
-    if (!matfp) 
-    {
-        fprintf(stderr, "Error opening MAT file '%s'.\n", filename);
-        return NULL;
-    }
-
-    // Read the variable from the MAT file
-    matvar = matGetVariable(matfp, matname);
-    if (!matvar) 
-    {
-        fprintf(stderr, "Error reading variable '%s' from MAT file.\n", matname);
-        matClose(matfp);
-        return NULL;
-    }
-
-    // Check for 2D numeric matrix
-    if (mxGetNumberOfDimensions(matvar) == 2)
-    {
-        *rows = (int)mxGetM(matvar);
-        *cols = (int)mxGetN(matvar);
-        size_t total_elements = (*rows) * (*cols);
-
-        if (mxIsDouble(matvar))
-        {
-            printf("Detected data type: double\n");
-            data = malloc(total_elements * sizeof(double));
-            if (!data) 
-            {
-                fprintf(stderr, "Error allocating memory for double matrix data.\n");
-                mxDestroyArray(matvar);
-                matClose(matfp);
-                return NULL;
-            }
-
-            double *matData = mxGetPr(matvar);
-            for (int i = 0; i < *rows; i++) 
-            {
-                for (int j = 0; j < *cols; j++) 
-                {
-                    ((double *)data)[i * (*cols) + j] = matData[j * (*rows) + i];
-                }
-            }
-        }
-        else if (mxIsSingle(matvar))
-        {
-            printf("Detected data type: float (single)\n");
-            data = malloc(total_elements * sizeof(float));
-            if (!data) 
-            {
-                fprintf(stderr, "Error allocating memory for float matrix data.\n");
-                mxDestroyArray(matvar);
-                matClose(matfp);
-                return NULL;
-            }
-
-            float *matData = (float *)mxGetData(matvar);
-            for (int i = 0; i < *rows; i++) 
-            {
-                for (int j = 0; j < *cols; j++) 
-                {
-                    ((float *)data)[i * (*cols) + j] = matData[j * (*rows) + i];
-                }
-            }
-        }
-        else if (mxIsInt32(matvar))
-        {
-            printf("Detected data type: int32\n");
-            data = malloc(total_elements * sizeof(int));
-            if (!data) 
-            {
-                fprintf(stderr, "Error allocating memory for int32 matrix data.\n");
-                mxDestroyArray(matvar);
-                matClose(matfp);
-                return NULL;
-            }
-
-            int *matData = (int *)mxGetData(matvar);
-            for (int i = 0; i < *rows; i++) 
-            {
-                for (int j = 0; j < *cols; j++) 
-                {
-                    ((int *)data)[i * (*cols) + j] = matData[j * (*rows) + i];
-                }
-            }
-        }
-        else
-        {
-            fprintf(stderr, "Unsupported data type for variable '%s'. Only double, float (single), or int32 supported.\n", matname);
-            mxDestroyArray(matvar);
-            matClose(matfp);
-            return NULL;
-        }
-    }
-    else
-    {
-        fprintf(stderr, "Variable '%s' is not a 2D matrix.\n", matname);
-        mxDestroyArray(matvar);
-        matClose(matfp);
-        return NULL;
-    }
-
-    mxDestroyArray(matvar);
-    matClose(matfp);
-    return data;
-}
-
-
-static int storeHDF5File(const void* mat, const char* matname, int rows, int cols, const char *filename, MATRIX_TYPE type, const char mode) {
+int store_hdf5(const void* mat, const char* matname, int rows, int cols, const char *filename, MATRIX_TYPE type, const char mode) {
     if (!mat) {
         fprintf(stderr, "Error: Matrix data is NULL.\n");
         return EXIT_FAILURE;
@@ -320,160 +205,6 @@ static int storeHDF5File(const void* mat, const char* matname, int rows, int col
     H5Fclose(file_id);
 
     return EXIT_SUCCESS;
-}
-
-
-static int storeMATFile(const void* mat, const char* matname, int rows, int cols, const char *filename, MATRIX_TYPE type, const char mode)
-{
-    if (!mat) 
-    {
-        fprintf(stderr, "Error: Matrix data is NULL.\n");
-        return EXIT_FAILURE;
-    }
-
-    // Open or create the MAT file
-    MATFile *matfp = NULL;
-    if (mode == 'w') 
-    {
-        matfp = matOpen(filename, "w");
-    }
-    else if (mode == 'a') 
-    {
-        matfp = matOpen(filename, "u");
-        if (!matfp) 
-        {
-            matfp = matOpen(filename, "w");
-            if (!matfp) 
-            {
-                fprintf(stderr, "Error: Unable to create MAT file '%s'.\n", filename);
-                return EXIT_FAILURE;
-            }
-        }
-    }
-    else 
-    {
-        fprintf(stderr, "Error: Unsupported file mode. Use 'w' or 'a'.\n");
-        return EXIT_FAILURE;
-    }
-
-    if (!matfp) 
-    {
-        fprintf(stderr, "Error opening MAT file '%s'.\n", filename);
-        return EXIT_FAILURE;
-    }
-
-    mxArray *mx_matrix = NULL;
-
-    if (type == DOUBLE_TYPE) 
-    {
-        mx_matrix = mxCreateDoubleMatrix(rows, cols, mxREAL);
-        if (!mx_matrix) 
-        {
-            fprintf(stderr, "Error creating MATLAB double matrix '%s'.\n", matname);
-            matClose(matfp);
-            return EXIT_FAILURE;
-        }
-
-        double *mxData = mxGetPr(mx_matrix);
-        const double *inputData = (const double *)mat;
-        for (int i = 0; i < rows; i++) 
-        {
-            for (int j = 0; j < cols; j++) 
-            {
-                mxData[j * rows + i] = inputData[i * cols + j];
-            }
-        }
-    }
-    else if (type == INT_TYPE) 
-    {
-        mx_matrix = mxCreateNumericMatrix(rows, cols, mxINT32_CLASS, mxREAL);
-        if (!mx_matrix) 
-        {
-            fprintf(stderr, "Error creating MATLAB int32 matrix '%s'.\n", matname);
-            matClose(matfp);
-            return EXIT_FAILURE;
-        }
-
-        int *mxData = (int *)mxGetData(mx_matrix);
-        const int *inputData = (const int *)mat;
-        for (int i = 0; i < rows; i++) 
-        {
-            for (int j = 0; j < cols; j++) 
-            {
-                mxData[j * rows + i] = inputData[i * cols + j];
-            }
-        }
-    }
-    else if (type == FLOAT_TYPE) 
-    {
-        mx_matrix = mxCreateNumericMatrix(rows, cols, mxSINGLE_CLASS, mxREAL);
-        if (!mx_matrix) 
-        {
-            fprintf(stderr, "Error creating MATLAB float (single) matrix '%s'.\n", matname);
-            matClose(matfp);
-            return EXIT_FAILURE;
-        }
-
-        float *mxData = (float *)mxGetData(mx_matrix);
-        const float *inputData = (const float *)mat;
-        for (int i = 0; i < rows; i++) 
-        {
-            for (int j = 0; j < cols; j++) 
-            {
-                mxData[j * rows + i] = inputData[i * cols + j];
-            }
-        }
-    }
-    else 
-    {
-        fprintf(stderr, "Error: Unsupported matrix type.\n");
-        matClose(matfp);
-        return EXIT_FAILURE;
-    }
-
-    // Write the matrix to the file
-    if (matPutVariable(matfp, matname, mx_matrix) != 0) 
-    {
-        fprintf(stderr, "Error writing variable '%s' to '%s'.\n", matname, filename);
-        mxDestroyArray(mx_matrix);
-        matClose(matfp);
-        return EXIT_FAILURE;
-    }
-
-    mxDestroyArray(mx_matrix);
-    matClose(matfp);
-
-    return EXIT_SUCCESS;
-}
-
-
-void *load_matrix(const char *filename, const char* matname, int* rows, int* cols)
-{
-    if (has_extension(filename, ".mat"))
-    {
-        return readMATFile(filename, matname, rows, cols);
-    }
-    else if (has_extension(filename, ".hdf5"))
-    {
-        return readHDF5File(filename, matname, rows, cols);
-    }
-
-    return NULL;
-}
-
-
-int store_matrix(const void *mat, const char *matname, int rows, int cols, const char *filename, MATRIX_TYPE type, const char mode) {
-    
-    if (has_extension(filename, ".mat"))
-    {
-        return storeMATFile(mat, matname, rows, cols, filename, type, mode);
-    }
-    else if (has_extension(filename, ".hdf5"))
-    {
-        return storeHDF5File(mat, matname, rows, cols, filename, type, mode);
-    }
-
-    return EXIT_SUCCESS;  
 }
 
 

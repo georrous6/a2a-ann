@@ -8,7 +8,7 @@
 The library is optimized for multicore systems using:
 - **POSIX Threads (pthreads)**
 - **OpenBLAS**
-- Optional: **MATLAB** and **HDF5** for testing and benchmarking utilities
+- Optional: **Python 3** and **HDF5** for testing and benchmarking utilities
 
 ---
 
@@ -16,10 +16,8 @@ The library is optimized for multicore systems using:
 
 - **CMake** >= 3.10
 - **OpenBLAS**
-- **MATLAB** (required for `DEBUG` configuration -- used in tests and benchmarks)
+- **Python 3** (required for `DEBUG` configuration -- used in tests and benchmarks)
 - **HDF5** (required for `DEBUG` configuration)
-
-> *Attetion*: In `DEBUG` mode, `MATLAB_ROOT` must be specified via `-DMATLAB_ROOT=/path/to/MATLAB`.
 
 ---
 
@@ -51,7 +49,7 @@ This project supports two build configurations:
 | Build Type     | Description                           | Dependencies               |
 |----------------|---------------------------------------|----------------------------|
 | `RELEASE`      | Build the standalone library only     | OpenBLAS                   |
-| `DEBUG`        | Build tests and benchmarks (with MATLAB + HDF5 support) | OpenBLAS + MATLAB + HDF5 |
+| `DEBUG`        | Build tests and benchmarks            | OpenBLAS + HDF5 + Python 3 |
 
 You can select the build mode using the `BUILD_CONFIGURATION` flag.
 
@@ -71,11 +69,13 @@ This will compile the static library `libann.a` in `build/`.
 ### Building with Tests and Benchmarks (DEBUG)
 
 ```bash
-cmake -S . -B build -DBUILD_CONFIGURATION=DEBUG -DMATLAB_ROOT=/path/to/MATLAB/R2024b
+cmake -S . -B build -DBUILD_CONFIGURATION=DEBUG
 cmake --build build
 ```
-Replace `path/to/MATLAB/R2024b` with your actual MATLAB installation path -- 
-usually `usr/local/MATLAB/R2024b` on Linux.
+You have also to install the dependencies for the python scripts:
+```bash
+pip install requirements.txt
+```
 
 ## Running Tests
 
@@ -85,7 +85,7 @@ cd test
 chmod +x run_tests.sh
 ./run_tests.sh
 ```
-This will automatically generate test files using MATLAB and run tests against those datasets to 
+This will automatically generate test files using Python 3 and run tests against those datasets to 
 verify correctness.
 
 ## Running Benchmarks
@@ -99,7 +99,7 @@ cd benchmark/knn-benchmark
 chmod +x run_knn_benchmarks.sh
 ./run_knn_benchmarks.sh <path/to/dataset>
 ```
-- The benchmark output will be saved to: `benchmark/knn-benchmark/knn_benchmark_output.mat`
+- The benchmark output will be saved to: `benchmark/knn-benchmark/knn_benchmark_output.hdf5`
 - The benchmark plot will be saved to: `docs/figures/throughput_vs_threads.png`. 
 
 You may also run benchmarks using a custom .hdf5 dataset. The dataset must include the 

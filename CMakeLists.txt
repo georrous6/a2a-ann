@@ -5,9 +5,6 @@ project(a2a_annlib C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-# Set the default matlab root directory to an empty string (used only for DEBUG configuration)
-set(MATLAB_ROOT "" CACHE PATH "Root directory of MATLAB installation (required for DEBUG configuration)")
-
 # Set default build configuration to RELEASE
 set(BUILD_CONFIGURATION "RELEASE" CACHE STRING "Build configuration: DEBUG or RELEASE")
 set_property(CACHE BUILD_CONFIGURATION PROPERTY STRINGS DEBUG RELEASE)
@@ -26,18 +23,6 @@ file(GLOB_RECURSE SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 
 
 if("${BUILD_CONFIGURATION}" STREQUAL "DEBUG")
-
-    if(NOT MATLAB_ROOT)
-        message(FATAL_ERROR "MATLAB_ROOT must be specified for DEBUG configuration.")
-    endif()
-
-    # MATLAB includes and libraries
-    set(MATLAB_INCLUDE_DIR "${MATLAB_ROOT}/extern/include")
-    set(MATLAB_LIB_DIR "${MATLAB_ROOT}/bin/glnxa64")
-
-    set(MATLAB_LIB_MAT "${MATLAB_LIB_DIR}/libmat.so")
-    set(MATLAB_LIB_MX "${MATLAB_LIB_DIR}/libmx.so")
-    set(MATLAB_LIB_MEX "${MATLAB_LIB_DIR}/libmex.so")
 
     # Find HDF5
     find_package(HDF5 REQUIRED COMPONENTS C)
@@ -94,7 +79,6 @@ if("${BUILD_CONFIGURATION}" STREQUAL "DEBUG")
     )
     target_include_directories(tests
         PRIVATE
-            "${MATLAB_INCLUDE_DIR}"
             ${HDF5_INCLUDE_DIRS}
             "${PROJECT_SOURCE_DIR}/include"
             "${PROJECT_SOURCE_DIR}/util"
@@ -102,9 +86,6 @@ if("${BUILD_CONFIGURATION}" STREQUAL "DEBUG")
     target_link_libraries(tests
         PRIVATE
             annd_debug
-            ${MATLAB_LIB_MAT}
-            ${MATLAB_LIB_MX}
-            ${MATLAB_LIB_MEX}
             ${HDF5_LIBRARIES}
     )
 
@@ -126,7 +107,6 @@ if("${BUILD_CONFIGURATION}" STREQUAL "DEBUG")
     )
     target_include_directories(knn_benchmarks
         PRIVATE
-            "${MATLAB_INCLUDE_DIR}"
             ${HDF5_INCLUDE_DIRS}
             "${PROJECT_SOURCE_DIR}/include"
             "${PROJECT_SOURCE_DIR}/util"
@@ -134,9 +114,6 @@ if("${BUILD_CONFIGURATION}" STREQUAL "DEBUG")
     target_link_libraries(knn_benchmarks
         PRIVATE
             anns_debug
-            ${MATLAB_LIB_MAT}
-            ${MATLAB_LIB_MX}
-            ${MATLAB_LIB_MEX}
             ${HDF5_LIBRARIES}
     )
 
@@ -158,7 +135,6 @@ if("${BUILD_CONFIGURATION}" STREQUAL "DEBUG")
     )
     target_include_directories(ann_benchmarks
         PRIVATE
-            "${MATLAB_INCLUDE_DIR}"
             ${HDF5_INCLUDE_DIRS}
             "${PROJECT_SOURCE_DIR}/include"
             "${PROJECT_SOURCE_DIR}/util"
@@ -166,9 +142,6 @@ if("${BUILD_CONFIGURATION}" STREQUAL "DEBUG")
     target_link_libraries(ann_benchmarks
         PRIVATE
             anns_debug
-            ${MATLAB_LIB_MAT}
-            ${MATLAB_LIB_MX}
-            ${MATLAB_LIB_MEX}
             ${HDF5_LIBRARIES}
     )
 else()

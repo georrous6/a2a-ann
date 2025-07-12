@@ -10,8 +10,7 @@ typedef enum { DOUBLE_TYPE, FLOAT_TYPE, INT_TYPE } MATRIX_TYPE;
 
 
 /**
- * Driver function for loading a 2D matrix from a file.
- * Supported file types are MAT and HDF5.
+ * Driver function for loading a 2D matrix from a .hdf5 file.
  * 
  * @param filename the name of the file
  * @param matname the name of the matrix to be loaded
@@ -21,11 +20,11 @@ typedef enum { DOUBLE_TYPE, FLOAT_TYPE, INT_TYPE } MATRIX_TYPE;
  * or NULL if an error occured
  * @note memory deallocation should take place outside the function
  */
-void* load_matrix(const char *filename, const char* matname, int* rows, int* cols);
+void* load_hdf5(const char *filename, const char* matname, int* rows, int* cols);
 
 
 /**
- * Function to save a 2D matrix to a .mat or .hdf5 file. Supports double and int data types.
+ * Function to save a 2D matrix to .hdf5 file. Supports double and int data types.
  * If the file already exists it overwrites it and if it doesn't it creates it.
  *
  * @param mat Pointer to the matrix data.
@@ -37,7 +36,7 @@ void* load_matrix(const char *filename, const char* matname, int* rows, int* col
  * @param mode the mode to open the file. 'a' appends the data to file and 'w' overwrites it.
  * @return EXIT_SUCCESS if successful, otherwise EXIT_FAILURE.
  */
-int store_matrix(const void* mat, const char* matname, int rows, int cols, const char *filename, MATRIX_TYPE type, const char mode);
+int store_hdf5(const void* mat, const char* matname, int rows, int cols, const char *filename, MATRIX_TYPE type, const char mode);
 
 
 /**
