@@ -67,3 +67,6 @@ config.status
 *.asv
 *.mat
 *.hdf5
+
+# Debug Directories
+debug/
