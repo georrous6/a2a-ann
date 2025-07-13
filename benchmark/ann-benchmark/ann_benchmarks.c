@@ -27,37 +27,54 @@ int ann_benchmark(const char *filename, int *nthreads, int *num_clusters, const 
     setColor(BOLD_BLUE);
     printf("Running ANN Benchmark %s ...       ", filename);
     setColor(DEFAULT);
-    int N, L;
-    float *C = NULL, *my_D = NULL;
-    int *test_IDX = NULL, *my_IDX = NULL;
+    float *train = NULL, *test = NULL, *train_test = NULL, *my_all_to_all_distances = NULL;
+    int *all_to_all_neighbors = NULL, *my_all_to_all_neighbors = NULL;
     int status = EXIT_FAILURE;
     struct timeval tstart, tend;
-    const int max_iter = 10;
+    const int max_iter = 1;
+    int aa, bb, cc, dd;
 
     float execution_time[THREAD_CASES][CLUSTER_CASES];
     float recall[THREAD_CASES][CLUSTER_CASES];
     float queries_per_sec[THREAD_CASES][CLUSTER_CASES];
 
-    // load corpus matrix from file
-    C = (float *)load_hdf5(filename, "/train_test", &N, &L); if (!C) goto cleanup;
+    train = (float *)load_hdf5(filename, "/train", &aa, &bb); if (!train) goto cleanup;
+
+    test = (float *)load_hdf5(filename, "/test", &cc, &dd); if (!test) goto cleanup;
+
+    if (bb != dd) {
+        fprintf(stderr, "Inconsistent number of columns for train and test matrices\n");
+        goto cleanup;
+    }
+
+    // Concatenate train and test matrices
+    const int N = aa + cc;
+    const int L = bb;
+    train_test = (float *)malloc(N * L * sizeof(float)); if (!train_test) goto cleanup;
+    memcpy(train_test, train, aa * L * sizeof(float));
+    memcpy(train_test + aa * L, test, cc * L * sizeof(float));
 
     // load expected indices matrix from file
-    int a, b;
-    test_IDX = (int *)load_hdf5(filename, "/train_test_neighbors", &a, &b); if (!test_IDX) goto cleanup;
-    const int K = b;
+    all_to_all_neighbors = (int *)load_hdf5(filename, "/all_to_all_neighbors", &aa, &bb); if (!all_to_all_neighbors) goto cleanup;
+
+    if (aa != N) {
+        fprintf(stderr, "Inconsistent dimensions for neighbors matrix\n");
+        goto cleanup;
+    }
+    const int K = bb;
 
     // memory allocation for the estimated distance matrix
-    my_D = (float *)malloc(N * K * sizeof(float)); if (!my_D) goto cleanup;
+    my_all_to_all_distances = (float *)malloc(N * K * sizeof(float)); if (!my_all_to_all_distances) goto cleanup;
 
     // memory allocation for the estimated index matrix
-    my_IDX = (int *)malloc(N * K * sizeof(int)); if (!my_IDX) goto cleanup;
+    my_all_to_all_neighbors = (int *)malloc(N * K * sizeof(int)); if (!my_all_to_all_neighbors) goto cleanup;
 
 
     for (int t = 0; t < THREAD_CASES; t++) {
         for (int c = 0; c < CLUSTER_CASES; c++) {
             ann_set_num_threads(nthreads[t]);
             gettimeofday(&tstart, NULL);
-            if (a2a_annsearch(C, N, L, K, num_clusters[c], my_IDX, my_D, max_iter)) goto cleanup;
+            if (a2a_annsearch(train_test, N, L, K, num_clusters[c], my_all_to_all_neighbors, my_all_to_all_distances, max_iter)) goto cleanup;
             gettimeofday(&tend, NULL);
             long execution_time_usec = (tend.tv_sec - tstart.tv_sec) * 1000000L + (tend.tv_usec - tstart.tv_usec);
             execution_time[t][c] = execution_time_usec / 1e6f;  // Convert to seconds
@@ -65,15 +82,11 @@ int ann_benchmark(const char *filename, int *nthreads, int *num_clusters, const 
 
             int found = 0;
 
-            for (int i = 0; i < N; i++)
-            {
-                for (int j = 0; j < K; j++)
-                {
-                    const int index = test_IDX[i * K + j];
-                    for (int k = 0; k < K; k++)
-                    {
-                        if (index == my_IDX[i * K + k])
-                        {
+            for (int i = 0; i < N; i++) {
+                for (int j = 0; j < K; j++) {
+                    const int index = all_to_all_neighbors[i * K + j];
+                    for (int k = 0; k < K; k++) {
+                        if (index == my_all_to_all_neighbors[i * K + k]) {
                             found++;
                             break;
                         }
@@ -101,10 +114,12 @@ int ann_benchmark(const char *filename, int *nthreads, int *num_clusters, const 
     status = EXIT_SUCCESS;
 
 cleanup:
-    if (C) free(C);
-    if (my_D) free(my_D);
-    if (my_IDX) free(my_IDX);
-    if (test_IDX) free(test_IDX);
+    if (train) free(train);
+    if (test) free(test);
+    if (train_test) free(train_test);
+    if (my_all_to_all_distances) free(my_all_to_all_distances);
+    if (my_all_to_all_neighbors) free(my_all_to_all_neighbors);
+    if (all_to_all_neighbors) free(all_to_all_neighbors);
 
     return status;
 }

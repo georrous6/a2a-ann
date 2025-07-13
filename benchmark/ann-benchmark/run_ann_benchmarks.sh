@@ -27,7 +27,12 @@ if [ ! -f "$DATASET_PATH" ]; then
     exit 1
 fi
 
-matlab -batch "compute_all_to_all_knn('$DATASET_PATH'); exit;"
+# Run the Python script to compute all-to-all KNN
+python3 compute_all_to_all_knn.py "$DATASET_PATH"
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to compute all-to-all KNN."
+    exit 1
+fi
 
 # Run the executable with the dataset path and benchmark output file as arguments
 "$EXECUTABLE_PATH" "$DATASET_PATH" "$BENCHMARK_OUTPUT"
@@ -37,6 +42,6 @@ if [ $? -ne 0 ]; then
 fi
 
 # Call the MATLAB function to plot results, passing the benchmark output file
-matlab -batch "plot_ann_benchmarks('$BENCHMARK_OUTPUT'); exit;"
+python3 plot_ann_benchmarks.py "$BENCHMARK_OUTPUT"
 
 echo "ANN benchmark completed successfully."

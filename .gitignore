@@ -67,6 +67,3 @@ config.status
 *.asv
 *.mat
 *.hdf5
-
-# Temporary Directories
-tmp/

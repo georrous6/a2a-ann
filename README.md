@@ -1,5 +1,5 @@
 # all2all-ann
----
+
 ![Build Status](https://github.com/georrous6/all2all-ann/actions/workflows/ci-build.yml/badge.svg)
 ![Test Status](https://github.com/georrous6/all2all-ann/actions/workflows/ci-test.yml/badge.svg)
 

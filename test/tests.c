@@ -17,56 +17,61 @@ void setColor(const char *colorCode)
 #define BOLD_GREEN     "\033[1;32m"
 #define BOLD_BLUE      "\033[1;34m"
 
+#define TOLERANCE 1e-6
+
 
 int test_case(const char *filename, double tolerance)
 {
     setColor(BOLD_BLUE);
     printf("Running test %s ...       ", filename);
     setColor(DEFAULT);
-    int M, N, L;
-    double *C = NULL, *Q = NULL, *my_D = NULL, *test_D = NULL;
-    int *K = NULL, *test_IDX = NULL, *my_IDX = NULL;
+    int M, N, L, K;
+    double *train = NULL, *test = NULL, *my_distances = NULL, *distances = NULL;
+    int *neighbors = NULL, *my_neighbors = NULL;
     int status = EXIT_FAILURE;
+    int aa, bb, cc, dd;
 
     // load corpus matrix from file
-    C = (double *)load_hdf5(filename, "C", &N, &L); if (!C) goto cleanup;
+    train = (double *)load_hdf5(filename, "/train", &N, &aa); if (!train) goto cleanup;
 
     // load queries matrix from file
-    Q = (double *)load_hdf5(filename, "Q", &M, &L); if (!Q) goto cleanup;
+    test = (double *)load_hdf5(filename, "/test", &M, &bb); if (!test) goto cleanup;
 
-    int a, b;
-    // load K value from file
-    K = (int *)load_hdf5(filename, "K", &a, &b); if (!K) goto cleanup;
-
-    // load expected distances matrix from file
-    test_D = (double *)load_hdf5(filename, "test_D", &a, &b); if (!test_D) goto cleanup;
-
-    // load expected indices matrix from file
-    test_IDX = (int *)load_hdf5(filename, "test_IDX", &a, &b); if (!test_IDX) goto cleanup;
-
-    // memory allocation for the estimated distance matrix
-    my_D = (double *)malloc(M * (*K) * sizeof(double)); if (!my_D) goto cleanup;
-
-    // memory allocation for the estimated index matrix
-    my_IDX = (int *)malloc(M * (*K) * sizeof(int)); if (!my_IDX) goto cleanup;
-
-    if (!C || !Q || !K || !test_D || !test_IDX || !my_D || !my_IDX)
-    {
-        fprintf(stderr, "Error allocating memory\n");
+    if (aa != bb) {
+        fprintf(stderr, "Inconsistent number of columns for train and test matrices\n");
         goto cleanup;
     }
+    L = aa;
+
+    // load expected distances matrix from file
+    distances = (double *)load_hdf5(filename, "/distances", &aa, &bb); if (!distances) goto cleanup;
+
+    // load expected indices matrix from file
+    neighbors = (int *)load_hdf5(filename, "/neighbors", &cc, &dd); if (!neighbors) goto cleanup;
+
+    if (aa != M || cc != M || bb != dd) {
+        fprintf(stderr, "Inconsistent dimensions for distances or neighbors matrices\n");
+        goto cleanup;
+    }
+    K = bb;
+
+    // memory allocation for the estimated distance matrix
+    my_distances = (double *)malloc(M * K * sizeof(double)); if (!my_distances) goto cleanup;
+
+    // memory allocation for the estimated index matrix
+    my_neighbors = (int *)malloc(M * K * sizeof(int)); if (!my_neighbors) goto cleanup;
 
     knn_set_num_threads(-1);
-    if (knnsearch(Q, C, my_IDX, my_D, M, N, L, *K, 1)) goto cleanup;
+    if (knnsearch(test, train, my_neighbors, my_distances, M, N, L, K, 1)) goto cleanup;
 
     // test the output with the estimated one
     double x, y;
     for (int i = 0; i < M; i++)
     {
-        for (int j = 0; j < *K; j++)
+        for (int j = 0; j < K; j++)
         {
-            x = test_D[i * (*K) + j];
-            y = my_D[i * (*K) + j];
+            x = distances[i * K + j];
+            y = my_distances[i * K + j];
             if (fabs(x - y) >= tolerance)
             {
                 printf("Assertion %lf == %lf ", x, y);
@@ -77,11 +82,11 @@ int test_case(const char *filename, double tolerance)
 
     for (int i = 0; i < M; i++)
     {
-        for (int j = 0; j < *K; j++)
+        for (int j = 0; j < K; j++)
         {
-            if (test_IDX[i * (*K) + j] != my_IDX[i * (*K) + j])
+            if (neighbors[i * K + j] != my_neighbors[i * K + j])
             {
-                printf("Assertion %d == %d ", test_IDX[i * (*K) + j], my_IDX[i * (*K) + j]);
+                printf("Assertion %d == %d ", neighbors[i * K + j], my_neighbors[i * K + j]);
                 goto cleanup;
             }
         }
@@ -90,13 +95,12 @@ int test_case(const char *filename, double tolerance)
     status = EXIT_SUCCESS;
 
 cleanup:
-    if (C) free(C);
-    if (Q) free(Q);
-    if (K) free(K);
-    if (my_D) free(my_D);
-    if (my_IDX) free(my_IDX);
-    if (test_D) free(test_D);
-    if (test_IDX) free(test_IDX);
+    if (train) free(train);
+    if (test) free(test);
+    if (my_distances) free(my_distances);
+    if (my_neighbors) free(my_neighbors);
+    if (distances) free(distances);
+    if (neighbors) free(neighbors);
 
     return status;
 }
@@ -122,7 +126,7 @@ int main(int argc, char *argv[])
 
     for (size_t i = 0; i < test_cnt; i++) {
 
-        if (test_case(file_paths[i], 1e-6) == EXIT_SUCCESS) {
+        if (test_case(file_paths[i], TOLERANCE) == EXIT_SUCCESS) {
             setColor(BOLD_GREEN);
             printf("Passed\n");
             cnt_passed++;

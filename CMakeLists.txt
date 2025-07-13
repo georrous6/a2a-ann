@@ -28,7 +28,7 @@ if("${BUILD_CONFIGURATION}" STREQUAL "DEBUG")
     find_package(HDF5 REQUIRED COMPONENTS C)
 
     # === Create single precision library for benchmarks ===
-    add_library(anns_debug ${SRC_FILES})
+    add_library(anns_debug STATIC ${SRC_FILES})
     target_compile_definitions(anns_debug 
         PRIVATE 
             SINGLE_PRECISION 
@@ -45,7 +45,7 @@ if("${BUILD_CONFIGURATION}" STREQUAL "DEBUG")
     )
 
     # === Create double precision library for tests ===
-    add_library(annd_debug ${SRC_FILES})
+    add_library(annd_debug STATIC ${SRC_FILES})
     target_compile_definitions(annd_debug 
         PRIVATE 
         DOUBLE_PRECISION 
@@ -144,6 +144,58 @@ if("${BUILD_CONFIGURATION}" STREQUAL "DEBUG")
             anns_debug
             ${HDF5_LIBRARIES}
     )
+
+    # === KNN example target ===
+    file(GLOB KNN_EXAMPLE_SOURCES 
+        "${PROJECT_SOURCE_DIR}/examples/knn_example.c" 
+        "${PROJECT_SOURCE_DIR}/util/*.c"
+    )
+
+    add_executable(knn_example
+        ${KNN_EXAMPLE_SOURCES}
+    )
+    target_compile_definitions(knn_example 
+        PRIVATE 
+            SINGLE_PRECISION 
+            ${BUILD_CONFIGURATION}_CONFIG
+    )
+    target_include_directories(knn_example
+        PRIVATE
+            ${HDF5_INCLUDE_DIRS}
+            "${PROJECT_SOURCE_DIR}/include"
+            "${PROJECT_SOURCE_DIR}/util"
+    )
+    target_link_libraries(knn_example
+        PRIVATE
+            anns_debug
+            ${HDF5_LIBRARIES}
+    )
+
+    # === ANN example target ===
+    file(GLOB ANN_EXAMPLE_SOURCES
+        "${PROJECT_SOURCE_DIR}/examples/ann_example.c" 
+        "${PROJECT_SOURCE_DIR}/util/*.c"
+    )
+    add_executable(ann_example
+        ${ANN_EXAMPLE_SOURCES}
+    )
+    target_compile_definitions(ann_example
+        PRIVATE 
+            SINGLE_PRECISION 
+            ${BUILD_CONFIGURATION}_CONFIG
+    )
+    target_include_directories(ann_example
+        PRIVATE
+            ${HDF5_INCLUDE_DIRS}
+            "${PROJECT_SOURCE_DIR}/include"
+            "${PROJECT_SOURCE_DIR}/util"
+    )
+    target_link_libraries(ann_example
+        PRIVATE
+            anns_debug
+            ${HDF5_LIBRARIES}
+    )
+
 else()
     
     add_library(ann STATIC ${SRC_FILES})

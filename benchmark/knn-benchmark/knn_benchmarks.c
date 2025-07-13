@@ -27,8 +27,8 @@ int knn_benchmark(const char *filename, int *nthreads, int *cblas_nthreads, cons
     printf("Running KNN Benchmark %s ...       ", filename);
     setColor(DEFAULT);
     int M, N, L;
-    float *C = NULL, *Q = NULL, *my_D = NULL;
-    int *test_IDX = NULL, *my_IDX = NULL;
+    float *train = NULL, *test = NULL, *my_distances = NULL;
+    int *neighbors = NULL, *my_neighbors = NULL;
     int status = EXIT_FAILURE;
     struct timeval tstart, tend;
 
@@ -37,28 +37,28 @@ int knn_benchmark(const char *filename, int *nthreads, int *cblas_nthreads, cons
     float queries_per_sec[THREAD_CASES];
 
     // load corpus matrix from file
-    C = (float *)load_hdf5(filename, "/train", &N, &L); if (!C) goto cleanup;
+    train = (float *)load_hdf5(filename, "/train", &N, &L); if (!train) goto cleanup;
 
     // load queries matrix from file
-    Q = (float *)load_hdf5(filename, "/test", &M, &L); if (!Q) goto cleanup;
+    test = (float *)load_hdf5(filename, "/test", &M, &L); if (!test) goto cleanup;
 
     // load expected indices matrix from file
     int a, b;
-    test_IDX = (int *)load_hdf5(filename, "/neighbors", &a, &b); if (!test_IDX) goto cleanup;
+    neighbors = (int *)load_hdf5(filename, "/neighbors", &a, &b); if (!neighbors) goto cleanup;
     const int K = b;
 
     // memory allocation for the estimated distance matrix
-    my_D = (float *)malloc(M * K * sizeof(float)); if (!my_D) goto cleanup;
+    my_distances = (float *)malloc(M * K * sizeof(float)); if (!my_distances) goto cleanup;
 
     // memory allocation for the estimated index matrix
-    my_IDX = (int *)malloc(M * K * sizeof(int)); if (!my_IDX) goto cleanup;
+    my_neighbors = (int *)malloc(M * K * sizeof(int)); if (!my_neighbors) goto cleanup;
 
 
     for (int t = 0; t < THREAD_CASES; t++) {
         knn_set_num_threads(nthreads[t]);
         knn_set_num_threads_cblas(cblas_nthreads[t]);
         gettimeofday(&tstart, NULL);
-        if (knnsearch(Q, C, my_IDX, my_D, M, N, L, K, 1)) goto cleanup;
+        if (knnsearch(test, train, my_neighbors, my_distances, M, N, L, K, 1)) goto cleanup;
         gettimeofday(&tend, NULL);
         long execution_time_usec = (tend.tv_sec - tstart.tv_sec) * 1000000L + (tend.tv_usec - tstart.tv_usec);
         execution_time[t] = execution_time_usec / 1e6f;  // Convert to seconds
@@ -70,10 +70,10 @@ int knn_benchmark(const char *filename, int *nthreads, int *cblas_nthreads, cons
         {
             for (int j = 0; j < K; j++)
             {
-                const int index = test_IDX[i * K + j];
+                const int index = neighbors[i * K + j];
                 for (int k = 0; k < K; k++)
                 {
-                    if (index == my_IDX[i * K + k])
+                    if (index == my_neighbors[i * K + k])
                     {
                         found++;
                         break;
@@ -82,7 +82,7 @@ int knn_benchmark(const char *filename, int *nthreads, int *cblas_nthreads, cons
             }
         }
 
-        recall[t] = ((float) found) / (M * K) * 100.0;
+        recall[t] = ((float) found) / (M * K) * 100.0f;
 
         printf("\n\n===================\n");
         printf("KNN Benchmark\n");
@@ -99,11 +99,11 @@ int knn_benchmark(const char *filename, int *nthreads, int *cblas_nthreads, cons
     status = EXIT_SUCCESS;
 
 cleanup:
-    if (C) free(C);
-    if (Q) free(Q);
-    if (my_D) free(my_D);
-    if (my_IDX) free(my_IDX);
-    if (test_IDX) free(test_IDX);
+    if (train) free(train);
+    if (test) free(test);
+    if (my_distances) free(my_distances);
+    if (my_neighbors) free(my_neighbors);
+    if (neighbors) free(neighbors);
 
     return status;
 }
