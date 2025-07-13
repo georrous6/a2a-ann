@@ -2,11 +2,12 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <string.h>
+#include <time.h>
 #include "ioutil.h"
 #include "a2a_ann.h"
 
 #define NUM_THREADS 4    // Number of threads
-#define NUM_CLUSTERS 10  // Number of clusters
+#define NUM_CLUSTERS 5  // Number of clusters
 
 
 int main(int argc, char *argv[])
@@ -16,6 +17,8 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Usage: %s <filename>\n", argv[0]);
         return EXIT_FAILURE;
     }
+
+    srand(time(NULL));
 
     const char *filename = argv[1];
 

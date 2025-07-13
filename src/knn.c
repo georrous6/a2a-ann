@@ -171,7 +171,7 @@ static int alloc_memory(DTYPE **D_all_block, int **IDX_all_block, DTYPE **sqrmag
         *MAX_QUERIES_MEMORY = (max_allocable_memory - N * sizeof(DTYPE)) / 
                             (N * sizeof(int) + N * sizeof(DTYPE) + sizeof(DTYPE));
 
-        DEBUG_PRINT("Too large distance matrix. Max queries per block: %d\n", *MAX_QUERIES_MEMORY);
+        DEBUG_PRINT("KNN: Too large distance matrix. Max queries per block: %d\n", *MAX_QUERIES_MEMORY);
     }
 
     if (*MAX_QUERIES_MEMORY < 1) 
@@ -202,7 +202,7 @@ static int alloc_memory(DTYPE **D_all_block, int **IDX_all_block, DTYPE **sqrmag
 
 static void knnTaskExec(const knnTask *task)
 {
-    DEBUG_PRINT("Thread %lu executes task with %d queries...\n", pthread_self(), task->QUERIES_NUM_THREAD);
+    DEBUG_PRINT("KNN: Thread %lu executes task with %d queries...\n", pthread_self(), task->QUERIES_NUM_THREAD);
     DTYPE *D_all_block = task->D_all_block;
     int *IDX_all_block = task->IDX_all_block;
     const DTYPE *sqrmag_C = task->sqrmag_C;
@@ -234,7 +234,7 @@ static void knnTaskExec(const knnTask *task)
         qselect(D_all_block + (i + q_index_thread) * N, IDX_all_block + (i + q_index_thread) * N, 0, N - 1, K);
     }
 
-    DEBUG_PRINT("Thread %lu finished task with %d queries...\n", pthread_self(), task->QUERIES_NUM_THREAD);
+    DEBUG_PRINT("KNN: Thread %lu finished task with %d queries...\n", pthread_self(), task->QUERIES_NUM_THREAD);
 }
 
 
@@ -248,15 +248,15 @@ static void *knnThreadStart(void *pool)
         pthread_mutex_lock(&mutexQueue);
         while (Queue_isEmpty(queue) && isActive)
         {
-            DEBUG_PRINT("Thread %lu waiting...\n", pthread_self());
+            DEBUG_PRINT("KNN: Thread %lu waiting...\n", pthread_self());
             pthread_cond_wait(&condQueue, &mutexQueue);
         }
-        DEBUG_PRINT("Thread %lu woke up...\n", pthread_self());
+        DEBUG_PRINT("KNN: Thread %lu woke up...\n", pthread_self());
 
         if (!isActive)  // Check again after waiting to exit if flag has changed
         {
             pthread_mutex_unlock(&mutexQueue);
-            DEBUG_PRINT("Thread %lu exiting...\n", pthread_self());
+            DEBUG_PRINT("KNN: Thread %lu exiting...\n", pthread_self());
             break;
         }
 
@@ -268,11 +268,11 @@ static void *knnThreadStart(void *pool)
 
         pthread_mutex_lock(&mutexQueue);
         runningTasks--;
-        DEBUG_PRINT("Running tasks: %d\n", runningTasks);
+        DEBUG_PRINT("KNN: Running tasks: %d\n", runningTasks);
         if (runningTasks == 0)
         {
             // Signal main thread that all tasks for the current block are done
-            DEBUG_PRINT("All tasks for current block completed.\n");
+            DEBUG_PRINT("KNN: All tasks for current block completed.\n");
             pthread_cond_signal(&condTasksComplete);
         }
         pthread_mutex_unlock(&mutexQueue);
@@ -376,7 +376,7 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
             sqrmag_Q_block[i] = DOT(L, Q + (i + q_index) * L, 1, Q + (i + q_index) * L, 1);
         }
         
-        DEBUG_PRINT("\nThreads: %d (OpenBLAS threads: %d)\n", NTHREADS, openblas_get_num_threads());
+        DEBUG_PRINT("\nKNN: Threads: %d (OpenBLAS threads: %d)\n", NTHREADS, openblas_get_num_threads());
         if (NTHREADS == 1)  // no multithreading
         {
             knnTask task = {
@@ -455,7 +455,7 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
                 
             // Wait for all tasks in the current block to finish
             pthread_mutex_lock(&mutexQueue);
-            DEBUG_PRINT("Waiting for %d tasks to complete...\n", runningTasks);
+            DEBUG_PRINT("KNN: Waiting for %d tasks to complete...\n", runningTasks);
             while (runningTasks > 0)
             {
                 pthread_cond_wait(&condTasksComplete, &mutexQueue);

@@ -172,6 +172,8 @@ static void *annTaskExec(void *arg) {
     const DTYPE* C = task->C;
     int L = task->L;
     int K = task->K;
+    DTYPE *C_sub = NULL, *dist_sub = NULL;
+    int *idx_sub = NULL;
 
 
     for (int c = 0; c < num_clusters; ++c) {
@@ -182,9 +184,9 @@ static void *annTaskExec(void *arg) {
         int* indices = cluster_index[cid].indices;
 
         // Allocate memory for the submatrix and indices
-        DTYPE* C_sub = malloc(sizeof(DTYPE) * cluster_size * L);
-        int* idx_sub = malloc(sizeof(int) * cluster_size * (K + 1));
-        DTYPE* dist_sub = malloc(sizeof(DTYPE) * cluster_size * (K + 1));
+        C_sub = (DTYPE *)malloc(sizeof(DTYPE) * cluster_size * L);
+        dist_sub = (DTYPE *)malloc(sizeof(DTYPE) * cluster_size * (K + 1));
+        idx_sub = (int *)malloc(sizeof(int) * cluster_size * (K + 1));
         if (!C_sub || !idx_sub || !dist_sub) {
             if (C_sub) free(C_sub);
             if (idx_sub) free(idx_sub);
@@ -289,30 +291,38 @@ int a2a_annsearch(const DTYPE* C, const int N, const int L, const int K,
     const int Kc, int* IDX, DTYPE* D, const int max_iter) {
 
     int status = EXIT_FAILURE;
+    int *assignments = NULL, *counts = NULL;
+    DTYPE *centroids = NULL;
+    ClusterIndex* cluster_index = NULL;
+    pthread_t *threads = NULL;
+    annTask* tasks = NULL;
 
     // Allocate local memory for assignments and centroids
-    int* assignments = malloc(sizeof(int) * N);
-    DTYPE* centroids = malloc(sizeof(DTYPE) * Kc * L);
-    int* counts = calloc(Kc, sizeof(int));
+    assignments = (int *)malloc(sizeof(int) * N);
+    centroids = (DTYPE *)malloc(sizeof(DTYPE) * Kc * L);
+    counts = (int *)calloc(Kc, sizeof(int));
 
     if (!assignments || !centroids || !counts) goto cleanup;
 
     // Step 1: k-means clustering
+    DEBUG_PRINT("ANN: Creating %d clusters...\n", Kc);
     if (kmeans(C, N, L, Kc, centroids, assignments, counts, max_iter)) goto cleanup;
 
     // Step 2: build cluster point index
-    ClusterIndex* cluster_index = malloc(sizeof(ClusterIndex) * Kc);
+    cluster_index = (ClusterIndex *)malloc(sizeof(ClusterIndex) * Kc);
     if (!cluster_index) goto cleanup;
     for (int k = 0; k < Kc; k++) cluster_index[k].indices = NULL;
 
     if (build_cluster_index(assignments, counts, N, Kc, cluster_index)) goto cleanup;
 
     const int nthreads = ann_get_num_threads();
-    const int NTHREADS = Kc > nthreads ? nthreads : Kc; 
+    ann_set_num_threads(Kc > nthreads ? nthreads : Kc); 
+    const int NTHREADS = ann_get_num_threads();
+    DEBUG_PRINT("ANN: Running on %d threads\n", NTHREADS);
     
-    pthread_t *threads = (pthread_t *)malloc(sizeof(pthread_t) * NTHREADS);
+    threads = (pthread_t *)malloc(sizeof(pthread_t) * NTHREADS);
     if (!threads) goto cleanup;
-    annTask* tasks = (annTask *)malloc(sizeof(annTask) * NTHREADS);
+    tasks = (annTask *)malloc(sizeof(annTask) * NTHREADS);
     if (!tasks) goto cleanup;
 
     // Distribute clusters among threads
@@ -361,6 +371,7 @@ cleanup:
         }
         free(tasks);
     }
+    if (threads) free(threads);
     if (assignments) free(assignments);
     if (centroids) free(centroids);
     if (counts) free(counts);
