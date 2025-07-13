@@ -9,21 +9,28 @@ fi
 # Define variables
 DATASET_PATH="$1"
 SCRIPT_DIR="$(dirname "$0")"                              # Directory where this script is located
-EXECUTABLE_PATH="$SCRIPT_DIR/../../build/knn_benchmarks"  # Path to the executable
+EXECUTABLE_PATH="$SCRIPT_DIR/../../build/ann_benchmarks"  # Path to the executable
 
 # Construct benchmark output file name in the same directory as dataset
-BENCHMARK_OUTPUT="$SCRIPT_DIR/knn_benchmark_output.hdf5"
+BENCHMARK_OUTPUT="$SCRIPT_DOR/ann_benchmark_output.hdf5"
 
 # Check if the executable exists
 if [ ! -f "$EXECUTABLE_PATH" ]; then
     echo "Error: Executable '$EXECUTABLE_PATH' not found."
-    echo "Please build the project first using cmake with DEBUG configuration."
+    echo "Please build the project first using cmake with Debug configuration"
     exit 1
 fi
 
 # Check if the dataset file exists
 if [ ! -f "$DATASET_PATH" ]; then
     echo "Error: Dataset file '$DATASET_PATH' not found."
+    exit 1
+fi
+
+# Run the Python script to compute all-to-all KNN
+python3 compute_all_to_all_knn.py "$DATASET_PATH"
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to compute all-to-all KNN."
     exit 1
 fi
 
@@ -35,6 +42,6 @@ if [ $? -ne 0 ]; then
 fi
 
 # Call the MATLAB function to plot results, passing the benchmark output file
-python3 plot_knn_benchmarks.py "$BENCHMARK_OUTPUT"
+python3 plot_ann_benchmarks.py "$BENCHMARK_OUTPUT"
 
-echo "KNN benchmark completed successfully."
+echo "ANN benchmark completed successfully."

@@ -8,7 +8,7 @@ EXECUTABLE_PATH="$SCRIPT_DIR/../build/tests"  # Path th the executable
 # Check if the executable file exists inside the build directory
 if [ ! -f "$EXECUTABLE_PATH" ]; then
     echo "Error: Executable '$EXECUTABLE_PATH' not found."
-    echo "Please build the project first using 'make'."
+    echo "Please build the project using Debug configuration."
     exit 1
 fi
 

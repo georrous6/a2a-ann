@@ -20,14 +20,14 @@ The library is optimized for multicore systems using:
 
 - **CMake** >= 3.10
 - **OpenBLAS**
-- **Python 3** (required for `DEBUG` configuration -- used in tests and benchmarks)
-- **HDF5** (required for `DEBUG` configuration)
+- **Python 3** (required for `Debug` configuration -- used in tests and benchmarks)
+- **HDF5** (required for `Debug` configuration)
 
 ---
 
 ## Project Structure
 
-- **`benchmark/`**  
+- **`benchmarks/`**  
   Contains benchmarking tools and implementations for both k-NN and A2A-ANN algorithms.
 
 - **`docs/`**  
@@ -39,10 +39,10 @@ The library is optimized for multicore systems using:
 - **`src/`**  
   Source files implementing the core functionality of the ANN and k-NN algorithms.
 
-- **`test/`**  
+- **`tests/`**  
   Unit and integration tests for verifying the k-NN implementation.
 
-- **`util/`**  
+- **`utils/`**  
   Shared utility functions and helper code used across tests and benchmarks.
 
 
@@ -52,28 +52,28 @@ This project supports two build configurations:
 
 | Build Type     | Description                           | Dependencies               |
 |----------------|---------------------------------------|----------------------------|
-| `RELEASE`      | Build the standalone library only     | OpenBLAS                   |
-| `DEBUG`        | Build tests and benchmarks            | OpenBLAS + HDF5 + Python 3 |
+| `Release`      | Build the standalone library only     | OpenBLAS                   |
+| `Debug`        | Build tests and benchmarks            | OpenBLAS + HDF5 + Python 3 |
 
-You can select the build mode using the `BUILD_CONFIGURATION` flag.
+You can select the build mode using the `CMAKE_BUILD_TYPE` flag.
 
 ---
 
-### Building the Library (RELEASE)
+### Building the Library (Release)
 
 You can specify the precision of the library by setting the `PRECISION` flag to `SINGLE` or `DOUBLE`.
 The default configuration is `DOUBLE`.
 
 ```bash
-cmake -S . -B build -DBUILD_CONFIGURATION=RELEASE -DPRECISION=SINGLE
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DPRECISION=SINGLE
 cmake --build build
 ```
 This will compile the static library `libann.a` in `build/`.
 
-### Building with Tests and Benchmarks (DEBUG)
+### Building with Tests and Benchmarks (Debug)
 
 ```bash
-cmake -S . -B build -DBUILD_CONFIGURATION=DEBUG
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ```
 You have also to install the dependencies for the python scripts:
@@ -83,9 +83,9 @@ pip install -r requirements.txt
 
 ## Running Tests
 
-After building in `DEBUG` mode:
+After building in `Debug` mode:
 ```bash
-cd test
+cd tests
 chmod +x run_tests.sh
 ./run_tests.sh
 ```
@@ -97,13 +97,13 @@ Benchmarks were conducted on Ubuntu 22.04 LTS using a 4-core machine and the
 [MNIST dataset](https://github.com/erikbern/ann-benchmarks).
 
 ### KNN Benchmarks
-After building in `DEBUG` mode, run the benchmark script
+After building in `Debug` mode, run the benchmark script
 ```bash
-cd benchmark/knn-benchmark
+cd benchmarks/knn-benchmarks
 chmod +x run_knn_benchmarks.sh
 ./run_knn_benchmarks.sh <path/to/dataset>
 ```
-- The benchmark output will be saved to: `benchmark/knn-benchmark/knn_benchmark_output.hdf5`
+- The benchmark output will be saved to: `benchmarks/knn-benchmarks/knn_benchmark_output.hdf5`
 - The benchmark plot will be saved to: `docs/figures/throughput_vs_threads.png`. 
 
 You may also run benchmarks using a custom .hdf5 dataset. The dataset must include the 
@@ -116,9 +116,9 @@ following fields:
 ![knn benchmarks](docs/figures/knn_throughput_vs_threads.png)
 
 ### ANN Benchmarks
-Again, after building in `DEBUG` mode, run the following
+Again, after building in `Debug` mode, run the following
 ```bash
-cd benchmark/ann-benchmark
+cd benchmarks/ann-benchmarks
 chmod +x run_ann_benchmarks.sh
 ./run_ann_benchmarks.sh <path/to/dataset>
 ```

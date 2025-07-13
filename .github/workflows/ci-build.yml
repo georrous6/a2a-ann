@@ -16,7 +16,7 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake libopenblas-dev
 
-      - name: Configure and Build (RELEASE)
+      - name: Configure and Build (Release)
         run: |
-          cmake -S . -B build -DBUILD_CONFIGURATION=RELEASE -DPRECISION=SINGLE
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DPRECISION=SINGLE
           cmake --build build
