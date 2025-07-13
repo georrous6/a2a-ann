@@ -31,8 +31,8 @@ jobs:
           ./run_valgrind.sh
 
       - name: Upload Valgrind Logs
-        if: failure()  # only run this step if any previous step failed
-        uses: actions/upload-artifact@v3
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: valgrind-logs
           path: valgrind/valgrind_*.log
