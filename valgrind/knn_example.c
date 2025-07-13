@@ -58,6 +58,7 @@ int main(int argc, char *argv[])
 
     knn_set_num_threads(NUM_THREADS);
     knn_set_num_threads_cblas(1);
+    knn_set_max_memory_usage_ratio(0.01);
     gettimeofday(&tstart, NULL);
     if (knnsearch(test, train, my_neighbors, my_distances, M, N, L, K, 1)) goto cleanup;
     gettimeofday(&tend, NULL);

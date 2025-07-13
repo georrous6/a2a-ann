@@ -5,10 +5,15 @@
 #include "ann_config.h"
 #include <stdatomic.h>
 
-#define KNN_MAX_MEMORY_USAGE_RATIO 0.5        // Maximum memory usage ratio
 #define KNN_MIN_QUERIES_PER_BLOCK 1           // Minimum number of queries per block
 
 static atomic_int KNN_NUM_THREADS = 1;
+
+extern double KNN_MAX_MEMORY_USAGE_RATIO;
+
+void knn_set_max_memory_usage_ratio(double ratio);
+
+double knn_get_max_memory_usage_ratio(void);
 
 void knn_set_num_threads(int n);
 

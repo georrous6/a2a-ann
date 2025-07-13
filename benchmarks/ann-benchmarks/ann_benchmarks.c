@@ -4,6 +4,7 @@
 #include <string.h>
 #include "ioutil.h"
 #include "a2a_ann.h"
+#include "knn.h"
 
 
 // Function to set terminal color
@@ -73,6 +74,7 @@ int ann_benchmark(const char *filename, int *nthreads, int *num_clusters, const 
     for (int t = 0; t < THREAD_CASES; t++) {
         for (int c = 0; c < CLUSTER_CASES; c++) {
             ann_set_num_threads(nthreads[t]);
+            knn_set_max_memory_usage_ratio(0.2);
             gettimeofday(&tstart, NULL);
             if (a2a_annsearch(train_test, N, L, K, num_clusters[c], my_all_to_all_neighbors, my_all_to_all_distances, max_iter)) goto cleanup;
             gettimeofday(&tend, NULL);
@@ -132,6 +134,8 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Usage: %s <dataset> <benchmark_output>\n", argv[0]);
         return EXIT_FAILURE;
     }
+
+    srand(0);
 
     int ann_nthreads[THREAD_CASES] = {1, 2, 4, 8, 16, 32};
     int num_clusters[CLUSTER_CASES] = {10, 20, 50, 100, 200};

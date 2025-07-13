@@ -33,6 +33,20 @@ typedef struct knnTask {
 } knnTask;
 
 
+double KNN_MAX_MEMORY_USAGE_RATIO = 0.5;
+
+void knn_set_max_memory_usage_ratio(double ratio) {
+    if (ratio > 0.0 && ratio <= 1.0) {
+        KNN_MAX_MEMORY_USAGE_RATIO = ratio;
+    }
+    // else handle invalid input (e.g., ignore or print error)
+}
+
+double knn_get_max_memory_usage_ratio(void) {
+    return KNN_MAX_MEMORY_USAGE_RATIO;
+}
+
+
 void knn_set_num_threads(int n) {
 
     const long num_cores = sysconf(_SC_NPROCESSORS_ONLN);  // Number of online processors

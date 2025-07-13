@@ -149,7 +149,7 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 
     # === KNN example target ===
     file(GLOB KNN_EXAMPLE_SOURCES 
-        "${PROJECT_SOURCE_DIR}/examples/knn_example.c" 
+        "${PROJECT_SOURCE_DIR}/valgrind/knn_example.c" 
         "${PROJECT_SOURCE_DIR}/utils/*.c"
     )
 
@@ -175,7 +175,7 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 
     # === ANN example target ===
     file(GLOB ANN_EXAMPLE_SOURCES
-        "${PROJECT_SOURCE_DIR}/examples/ann_example.c" 
+        "${PROJECT_SOURCE_DIR}/valgrind/ann_example.c" 
         "${PROJECT_SOURCE_DIR}/utils/*.c"
     )
     add_executable(ann_example

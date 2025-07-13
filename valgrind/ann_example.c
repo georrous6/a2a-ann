@@ -2,12 +2,12 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <string.h>
-#include <time.h>
 #include "ioutil.h"
 #include "a2a_ann.h"
+#include "knn.h"
 
 #define NUM_THREADS 4    // Number of threads
-#define NUM_CLUSTERS 5  // Number of clusters
+#define NUM_CLUSTERS 2  // Number of clusters
 
 
 int main(int argc, char *argv[])
@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    srand(time(NULL));
+    srand(0);
 
     const char *filename = argv[1];
 
@@ -65,6 +65,7 @@ int main(int argc, char *argv[])
     my_all_to_all_neighbors = (int *)malloc(N * K * sizeof(int)); if (!my_all_to_all_neighbors) goto cleanup;
 
 
+    knn_set_max_memory_usage_ratio(0.1);
     ann_set_num_threads(NUM_THREADS);
     gettimeofday(&tstart, NULL);
     if (a2a_annsearch(train_test, N, L, K, NUM_CLUSTERS, my_all_to_all_neighbors, my_all_to_all_distances, max_iter)) goto cleanup;

@@ -1,0 +1,38 @@
+name: Valgrind
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  valgrind:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake libopenblas-dev libhdf5-dev python3 python3-pip valgrind
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Configure and Build (Debug)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build
+
+      - name: Run Valgrind
+        run: |
+          cd valgrind
+          chmod +x run_valgrind.sh
+          ./run_valgrind.sh
+
+      - name: Upload Valgrind Logs
+        if: failure()  # only run this step if any previous step failed
+        uses: actions/upload-artifact@v3
+        with:
+          name: valgrind-logs
+          path: valgrind/valgrind_*.log

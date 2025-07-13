@@ -22,8 +22,8 @@
 #endif
 
 #ifdef DEBUG_CONFIG
-    #define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
-    #define DEBUG_ASSERT(cond, msg) if (!(cond)) { fprintf(stderr, "Assertion failed: %s\n", msg); abort(); }
+    #define DEBUG_PRINT(...) printf(__VA_ARGS__)
+    #define DEBUG_ASSERT(cond, msg) if (!(cond)) { printf("Assertion failed: %s\n", msg); abort(); }
 #else
     #define DEBUG_PRINT(...) ((void)0)
     #define DEBUG_ASSERT(cond, msg) ((void)0)

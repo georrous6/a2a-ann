@@ -2,6 +2,7 @@
 
 ![Build Status](https://github.com/georrous6/all2all-ann/actions/workflows/ci-build.yml/badge.svg)
 ![Test Status](https://github.com/georrous6/all2all-ann/actions/workflows/ci-test.yml/badge.svg)
+![Valgrind Status](https://github.com/georrous6/all2all-ann/actions/workflows/ci-valgrind.yml/badge.svg)
 
 
 **all2all-ann** is a high-performance C library for solving the **All-to-All Approximate Nearest Neighbors (A2A-ANN)** problem. It includes highly parallelized implementations of both:
@@ -121,4 +122,12 @@ Again, after building in `Debug` mode, run the following
 cd benchmarks/ann-benchmarks
 chmod +x run_ann_benchmarks.sh
 ./run_ann_benchmarks.sh <path/to/dataset>
+```
+
+## Running Valgrind
+After building in `Debug` mode, run the following
+```bash
+cd valgrind
+chmod +x run_valgrind.sh
+./run_valgrind
 ```
