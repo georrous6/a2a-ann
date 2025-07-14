@@ -43,11 +43,13 @@ for c in range(num_cluster_levels):
              label=f'{num_clusters[c]} clusters',
              color=colors(c), linewidth=2, markersize=6)
 
-plt.grid(True)
+plt.xscale('log', base=2)
+plt.grid(True, which='both', linestyle='--', linewidth=0.7)
 plt.xlabel('Number of Threads')
 plt.ylabel('Queries per Second')
 plt.title('ANN: Queries per Second vs Number of Threads')
-plt.legend(loc='upper left')
+plt.legend(loc='upper right')
+plt.xticks(nthreads, [str(int(n)) for n in nthreads])  # Show exact thread counts as ticks
 
 output_file1 = os.path.join(output_dir, 'ann_throughput_vs_threads.png')
 plt.savefig(output_file1)
@@ -65,7 +67,7 @@ plt.grid(True)
 plt.xlabel('Number of Clusters')
 plt.ylabel('Recall (%)')
 plt.title('ANN: Recall vs Number of Clusters')
-plt.legend(loc='lower right')
+plt.legend(loc='upper right')
 
 output_file2 = os.path.join(output_dir, 'ann_recall_vs_clusters.png')
 plt.savefig(output_file2)

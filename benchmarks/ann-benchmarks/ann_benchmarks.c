@@ -74,7 +74,7 @@ int ann_benchmark(const char *filename, int *nthreads, int *num_clusters, const 
     for (int t = 0; t < THREAD_CASES; t++) {
         for (int c = 0; c < CLUSTER_CASES; c++) {
             ann_set_num_threads(nthreads[t]);
-            knn_set_max_memory_usage_ratio(0.2);
+            knn_set_max_memory_usage_ratio(0.5);
             gettimeofday(&tstart, NULL);
             if (a2a_annsearch(train_test, N, L, K, num_clusters[c], my_all_to_all_neighbors, my_all_to_all_distances, max_iter)) goto cleanup;
             gettimeofday(&tend, NULL);
@@ -105,13 +105,13 @@ int ann_benchmark(const char *filename, int *nthreads, int *num_clusters, const 
             printf("Execution time: %f sec\n", execution_time[t][c]);
             printf("Recall: %.4f%%\n", recall[t][c]);
             printf("Queries per sec: %.4f\n", queries_per_sec[t][c]);
+
+            store_hdf5(nthreads, "nthreads", 1, t + 1, output_file, INT_TYPE, 'w');
+            store_hdf5(num_clusters, "num_clusters", 1, c + 1, output_file, INT_TYPE, 'a');
+            store_hdf5(queries_per_sec, "queries_per_sec", t + 1, c + 1, output_file, FLOAT_TYPE, 'a');
+            store_hdf5(recall, "recall", t + 1, c + 1, output_file, FLOAT_TYPE, 'a');
         }
     }
-
-    store_hdf5(nthreads, "nthreads", 1, THREAD_CASES, output_file, INT_TYPE, 'w');
-    store_hdf5(num_clusters, "num_clusters", 1, CLUSTER_CASES, output_file, INT_TYPE, 'a');
-    store_hdf5(queries_per_sec, "queries_per_sec", THREAD_CASES, CLUSTER_CASES, output_file, FLOAT_TYPE, 'a');
-    store_hdf5(recall, "recall", THREAD_CASES, CLUSTER_CASES, output_file, FLOAT_TYPE, 'a');
 
     status = EXIT_SUCCESS;
 
@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
     srand(0);
 
     int ann_nthreads[THREAD_CASES] = {1, 2, 4, 8, 16, 32};
-    int num_clusters[CLUSTER_CASES] = {10, 20, 50, 100, 200};
+    int num_clusters[CLUSTER_CASES] = {5, 10, 20, 50, 100};
 
     if (ann_benchmark(argv[1], ann_nthreads, num_clusters, argv[2])) 
     {

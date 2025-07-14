@@ -12,7 +12,7 @@ SCRIPT_DIR="$(dirname "$0")"                              # Directory where this
 EXECUTABLE_PATH="$SCRIPT_DIR/../../build/ann_benchmarks"  # Path to the executable
 
 # Construct benchmark output file name in the same directory as dataset
-BENCHMARK_OUTPUT="$SCRIPT_DOR/ann_benchmark_output.hdf5"
+BENCHMARK_OUTPUT="$SCRIPT_DIR/ann_benchmark_output.hdf5"
 
 # Check if the executable exists
 if [ ! -f "$EXECUTABLE_PATH" ]; then

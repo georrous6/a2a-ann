@@ -90,8 +90,8 @@ int knn_get_num_threads(void) {
 }
 
 
-static unsigned long get_available_memory_bytes() {
-    unsigned long available_memory = 0;
+static size_t get_available_memory_bytes() {
+    size_t available_memory = 0UL;
     struct sysinfo info;
     if (sysinfo(&info) == 0) {
         available_memory = info.freeram * info.mem_unit;  // Multiply by unit size
@@ -161,20 +161,20 @@ static void qsort_(DTYPE *arr, int *idx, int l, int r) {
 
 
 static int alloc_memory(DTYPE **D_all_block, int **IDX_all_block, DTYPE **sqrmag_Q_block, DTYPE **sqrmag_C, const int M, const int N, int *MAX_QUERIES_MEMORY) {
-    unsigned long available_memory = get_available_memory_bytes();
-    unsigned long max_allocable_memory = (unsigned long)(available_memory * KNN_MAX_MEMORY_USAGE_RATIO);
+    size_t available_memory = get_available_memory_bytes();
+    size_t max_allocable_memory = (size_t)(available_memory * KNN_MAX_MEMORY_USAGE_RATIO);
 
     *MAX_QUERIES_MEMORY = M; 
-    unsigned long required_memory = (*MAX_QUERIES_MEMORY) * N * sizeof(int) +
-                                    (*MAX_QUERIES_MEMORY) * N * sizeof(DTYPE) +
-                                    (*MAX_QUERIES_MEMORY) * sizeof(DTYPE) +
-                                    N * sizeof(DTYPE);
+    size_t required_memory = (size_t)(*MAX_QUERIES_MEMORY) * (size_t)N * sizeof(int) +
+                                    (size_t)(*MAX_QUERIES_MEMORY) * (size_t)N * sizeof(DTYPE) +
+                                    (size_t)(*MAX_QUERIES_MEMORY) * sizeof(DTYPE) +
+                                    (size_t)N * sizeof(DTYPE);
     
     if (required_memory > max_allocable_memory) {
-        *MAX_QUERIES_MEMORY = (max_allocable_memory - N * sizeof(DTYPE)) / 
-                            (N * sizeof(int) + N * sizeof(DTYPE) + sizeof(DTYPE));
+        *MAX_QUERIES_MEMORY = (max_allocable_memory - (size_t)N * sizeof(DTYPE)) / 
+                            ((size_t)N * sizeof(int) + (size_t)N * sizeof(DTYPE) + sizeof(DTYPE));
 
-        DEBUG_PRINT("KNN: Too large distance matrix. Max queries per block: %d\n", *MAX_QUERIES_MEMORY);
+        DEBUG_PRINT("KNN: Too large distance matrix. Max queries per block: %d. Max allocable memory: %zu bytes\n", *MAX_QUERIES_MEMORY, max_allocable_memory);
     }
 
     if (*MAX_QUERIES_MEMORY < 1) {
@@ -183,10 +183,10 @@ static int alloc_memory(DTYPE **D_all_block, int **IDX_all_block, DTYPE **sqrmag
     }
 
 
-    *IDX_all_block = (int *)malloc((*MAX_QUERIES_MEMORY) * N * sizeof(int));
-    *D_all_block = (DTYPE *)malloc((*MAX_QUERIES_MEMORY) * N * sizeof(DTYPE));
-    *sqrmag_Q_block = (DTYPE *)malloc((*MAX_QUERIES_MEMORY) * sizeof(DTYPE));
-    *sqrmag_C = (DTYPE *)malloc(N * sizeof(DTYPE));
+    *IDX_all_block = (int *)malloc((size_t)(*MAX_QUERIES_MEMORY) * (size_t)N * sizeof(int));
+    *D_all_block = (DTYPE *)malloc((size_t)(*MAX_QUERIES_MEMORY) * (size_t)N * sizeof(DTYPE));
+    *sqrmag_Q_block = (DTYPE *)malloc((size_t)(*MAX_QUERIES_MEMORY) * sizeof(DTYPE));
+    *sqrmag_C = (DTYPE *)malloc((size_t)N * sizeof(DTYPE));
 
     if ((*IDX_all_block) && (*D_all_block) && (*sqrmag_C) && (*sqrmag_Q_block)) {
         return EXIT_SUCCESS;

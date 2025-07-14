@@ -6,8 +6,8 @@
 #include "a2a_ann.h"
 #include "knn.h"
 
-#define NUM_THREADS 1    // Number of threads
-#define NUM_CLUSTERS 50  // Number of clusters
+#define NUM_THREADS 16    // Number of threads
+#define NUM_CLUSTERS 20  // Number of clusters
 
 
 int main(int argc, char *argv[])

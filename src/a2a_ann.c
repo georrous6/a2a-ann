@@ -420,6 +420,15 @@ int a2a_annsearch(const DTYPE* C, const int N, const int L, const int K,
     pthread_t *threads = NULL;
     annTask* tasks = NULL;
 
+    if (Kc == 1) {
+        // Fall back to exact solution
+        knn_set_num_threads(-1);  // Use all the system cores
+        if (knnsearch(C, C, IDX, D, N, N, L, K, 0)) {
+            return EXIT_FAILURE;
+        }
+        return EXIT_SUCCESS;
+    }
+
     // Step 1: k-means clustering
     if (kmeans(C, N, L, K, &Kc, &assignments, &counts)) goto cleanup;
 
@@ -434,6 +443,10 @@ int a2a_annsearch(const DTYPE* C, const int N, const int L, const int K,
     ann_set_num_threads(Kc > nthreads ? nthreads : Kc); 
     const int NTHREADS = ann_get_num_threads();
     DEBUG_PRINT("ANN: Running on %d threads\n", NTHREADS);
+
+    // Distribute max memory usage ratio across threads
+    double prev_max_memory_usage_ratio = knn_get_max_memory_usage_ratio();
+    knn_set_max_memory_usage_ratio(prev_max_memory_usage_ratio / NTHREADS);
     
     threads = (pthread_t *)malloc(sizeof(pthread_t) * NTHREADS);
     if (!threads) goto cleanup;
@@ -473,6 +486,9 @@ int a2a_annsearch(const DTYPE* C, const int N, const int L, const int K,
     status = EXIT_SUCCESS;
 
 cleanup:
+
+    // Restore previous memory usage ratio
+    knn_set_max_memory_usage_ratio(prev_max_memory_usage_ratio);
 
     // Cleanup
     if (cluster_index) {
