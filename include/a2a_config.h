@@ -1,5 +1,5 @@
-#ifndef TEMPLATE_DEFINITIONS_H
-#define TEMPLATE_DEFINITIONS_H
+#ifndef A2A_CONFIG_H
+#define A2A_CONFIG_H
 
 #include <float.h>
 #include <cblas.h>
@@ -29,4 +29,4 @@
     #define DEBUG_ASSERT(cond, msg) ((void)0)
 #endif
 
-#endif // ANN_CONFIG_H
+#endif

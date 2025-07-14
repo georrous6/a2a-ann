@@ -3,10 +3,11 @@
 #include <sys/time.h>
 #include <string.h>
 #include "ioutil.h"
-#include "knn.h"
+#include "a2a_knn.h"
 
 
 #define NUM_THREADS 4
+#define MAX_MEMORY_USAGE_RATIO 0.1
 
 
 int main(int argc, char *argv[])
@@ -55,12 +56,9 @@ int main(int argc, char *argv[])
     // memory allocation for the estimated index matrix
     my_neighbors = (int *)malloc(M * K * sizeof(int)); if (!my_neighbors) goto cleanup;
 
-
-    knn_set_num_threads(NUM_THREADS);
-    knn_set_num_threads_cblas(1);
-    knn_set_max_memory_usage_ratio(0.01);
     gettimeofday(&tstart, NULL);
-    if (knnsearch(test, train, my_neighbors, my_distances, M, N, L, K, 1)) goto cleanup;
+    if (a2a_knnsearch(test, train, my_neighbors, my_distances, M, N, L, K, 1, 
+        NUM_THREADS, 1, MAX_MEMORY_USAGE_RATIO)) goto cleanup;
     gettimeofday(&tend, NULL);
     long execution_time_usec = (tend.tv_sec - tstart.tv_sec) * 1000000L + (tend.tv_usec - tstart.tv_usec);
     execution_time = (float)execution_time_usec / 1e6f;

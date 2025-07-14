@@ -5,7 +5,7 @@
 ![Valgrind Status](https://github.com/georrous6/all2all-ann/actions/workflows/ci-valgrind.yml/badge.svg)
 
 
-**all2all-ann** is a high-performance C library for solving the **All-to-All Approximate Nearest Neighbors (A2A-ANN)** problem. It includes highly parallelized implementations of both:
+**a2a-ann** is a high-performance C library for solving the **All-to-All Approximate Nearest Neighbors (A2A-ANN)** problem. It includes highly parallelized implementations of both:
 
 - **All-to-All Approximate Nearest Neighbors**
 - **k-Nearest Neighbors (k-NN)**
@@ -28,6 +28,12 @@ The library is optimized for multicore systems using:
 
 ## Project Structure
 
+- **`.github/`**
+  Contains GitHub Actions workflows for continuous integration and deployment (CI/CD).
+
+- **`.vscode/`**
+  Configuration files to facilitate quick and consistent setup in the VSCode development environment.
+
 - **`benchmarks/`**  
   Contains benchmarking tools and implementations for both k-NN and A2A-ANN algorithms.
 
@@ -35,7 +41,7 @@ The library is optimized for multicore systems using:
   Documentation, figures, and plots generated from benchmark results.
 
 - **`include/`**  
-  Public header files for the core library.
+  Public header files exposing the core library’s API.
 
 - **`src/`**  
   Source files implementing the core functionality of the ANN and k-NN algorithms.
@@ -45,6 +51,9 @@ The library is optimized for multicore systems using:
 
 - **`utils/`**  
   Shared utility functions and helper code used across tests and benchmarks.
+
+- **`valgrind/`**
+  Scripts and configuration files for memory analysis using Valgrind.
 
 
 ## Build Instructions
@@ -84,14 +93,14 @@ pip install -r requirements.txt
 
 ## Running Tests
 
-After building in `Debug` mode:
+After building the project in `Debug` mode, you can run the test suite as follows:
 ```bash
 cd tests
 chmod +x run_tests.sh
 ./run_tests.sh
 ```
-This will automatically generate test files using Python 3 and run tests against those datasets to 
-verify correctness.
+This script will automatically generate test datasets using Python 3 and execute the tests to 
+verify the correctness of the implementation.
 
 ## Running Benchmarks
 Benchmarks were conducted on Ubuntu 22.04 LTS using a 4-core machine and the
@@ -105,7 +114,7 @@ chmod +x run_knn_benchmarks.sh
 ./run_knn_benchmarks.sh <path/to/dataset>
 ```
 - The benchmark output will be saved to: `benchmarks/knn-benchmarks/knn_benchmark_output.hdf5`
-- The benchmark plot will be saved to: `docs/figures/throughput_vs_threads.png`. 
+- The benchmark plot will be saved to: `docs/figures/knn_throughput_vs_threads.png`. 
 
 You may also run benchmarks using a custom .hdf5 dataset. The dataset must include the 
 following fields:
@@ -114,20 +123,58 @@ following fields:
 - `/test`: Query matrix, single precision, row-major order
 - `/neighbors`: Ground truth indices (int32), row-major order
 
-![knn benchmarks](docs/figures/knn_throughput_vs_threads.png)
+![KNN throughput vs number of threads](docs/figures/knn_throughput_vs_threads.png)
 
 ### ANN Benchmarks
-Again, after building in `Debug` mode, run the following
+After building in `Debug` mode, run the following
 ```bash
 cd benchmarks/ann-benchmarks
 chmod +x run_ann_benchmarks.sh
 ./run_ann_benchmarks.sh <path/to/dataset>
 ```
+To use a custom .hdf5 dataset, ensure it follows the same format as used in the KNN benchmarks. 
+The benchmark process is the following:
 
-## Running Valgrind
-After building in `Debug` mode, run the following
+- The `train/` and `test/` matrices are being concatenated.
+- The exact all-to-all neighbors are computed.
+- The value of `K` corresponds to the number of columns in the `neighbors` matrix.
+
+The benchmark output is then validated against the exact solution, and the following files 
+are generated:
+
+- Benchmark results: `benchmarks/ann-benchmarks/ann_benchmark_output.hdf5`
+- Recall vs. number of clusters plot: `docs/figures/ann_recall_vs_clusters.png`.
+- Throughput vs. number of threads plot: `docs/figures/ann_throughput_vs_threads.phg`.
+
+![ANN recall vs number of clusters](docs/figures/ann_recall_vs_clusters.png)
+![ANN throughput vs number of threads](docs/figures/ann_throughput_vs_threads.png)
+
+## Valgrind
+
+Valgrind is used to detect memory leaks and invalid memory accesses in the codebase. 
+To use Valgrind, you first need to install it on your system.
+
+### Install Valgrind
+
+**On Ubuntu/Debian:**
+```bash
+sudo apt update
+sudo apt install valgrind
+```
+
+**On macOS (using Homebrew):**
+```bash
+brew install valgrind
+```
+> Note: Valgrind's support on macOS is limited and may not be available or fully functional 
+on newer macOS versions.
+
+### Running Valgrind
+After building the project in `Debug` mode, run the provided script:
 ```bash
 cd valgrind
 chmod +x run_valgrind.sh
-./run_valgrind
+./run_valgrind.sh
 ```
+You can review `valgrind_knn_example.log` and `valgrind_ann_example.log` files
+to identify memory leaks, invalid reads/writes, or other memory-related issues.

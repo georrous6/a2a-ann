@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
-#include "knn.h"
+#include "a2a_knn.h"
 #include <pthread.h>
 #include <sys/sysinfo.h>
 #include <unistd.h>
@@ -20,34 +20,17 @@ typedef struct {
 
 
 typedef struct annTask {
-    int* cluster_ids;             // Cluster indices assigned to this task
-    int num_clusters;             // Number of clusters in this task
-    ClusterIndex* cluster_index;  // Cluster index for this task
-    int L;                        // Dimension of the data points
-    int K;                        // Number of nearest neighbors to find
-    const DTYPE* C;               // Original data matrix
-    DTYPE* D;                     // Output distance matrix
-    int* IDX;                     // Output index matrix
+    int* cluster_ids;                    // Cluster indices assigned to this task
+    int num_clusters;                    // Number of clusters in this task
+    ClusterIndex* cluster_index;         // Cluster index for this task
+    int L;                               // Dimension of the data points
+    int K;                               // Number of nearest neighbors to find
+    const DTYPE* C;                      // Original data matrix
+    DTYPE* D;                            // Output distance matrix
+    int* IDX;                            // Output index matrix
+    int N;                               // Total number of data points
+    double max_memory_usage_ratio;       // Maximum memory usage ratio
 } annTask;
-
-
-void ann_set_num_threads(int n) {
-
-    const long num_cores = sysconf(_SC_NPROCESSORS_ONLN);  // Number of online processors
-    if (num_cores < 1) {
-        perror("sysconf\n");
-        return;
-    }
-
-    n = n < 1 ? (int)num_cores : n;
-
-    atomic_store(&ANN_NUM_THREADS, n);
-}
-
-
-int ann_get_num_threads(void) {
-    return atomic_load(&ANN_NUM_THREADS);
-}
 
 
 static DTYPE distance_squared(const DTYPE* a, const DTYPE* b, int L) {
@@ -77,31 +60,11 @@ static int build_cluster_index(const int* assignments, const int* counts, const 
 }
 
 
-static int kmeans(const DTYPE* data, const int N, const int L, const int K, int *Kc, int **assignments, int **counts) {
+static int kmeans(const DTYPE* data, const int N, const int L, const int K, int *Kc, 
+    int **assignments, int **counts, const int nthreads, const double max_memory_usage_ratio) {
 
     *assignments = NULL;
     *counts = NULL;
-
-    if (*Kc <= 0 || N <= 0 || L <= 0) {
-        fprintf(stderr, "Invalid parameters for k-means clustering\n");
-        return EXIT_FAILURE;
-    }
-    if (*Kc > N) {
-        fprintf(stderr, "Number of clusters cannot exceed number of data points\n");
-        return EXIT_FAILURE;
-    }
-    if (N / (*Kc) <= K) {
-        fprintf(stderr, "Number of clusters is too small for the given K\n");
-        return EXIT_FAILURE;
-    }
-    if (*Kc == 1) {
-        *assignments = (int *)malloc(N * sizeof(int));
-        *counts = (int *)malloc(sizeof(int));
-        if (!(*assignments) || !(*counts)) return EXIT_FAILURE;
-        memset(*assignments, 0, N * sizeof(int));
-        (*counts)[0] = N;
-        return EXIT_SUCCESS;
-    }
 
     DTYPE *centroids = NULL, *queries = NULL, *D = NULL;
     int *chosen = NULL, *IDX, *queries_map = NULL, *valid_clusters = NULL;
@@ -148,8 +111,8 @@ static int kmeans(const DTYPE* data, const int N, const int L, const int K, int 
     free(chosen); chosen = NULL;
 
     // Assign each query to the nearest centroid
-    knn_set_num_threads(-1);  // Use all the system cores
-    if (knnsearch(queries, centroids, IDX, D, N - (*Kc), *Kc, L, 1, 0)) goto cleanup;
+    if (a2a_knnsearch(queries, centroids, IDX, D, N - (*Kc), *Kc, L, 1, 0, 
+    nthreads, 1, max_memory_usage_ratio)) goto cleanup;
 
     // Map the indices back to the original data points
     for (int i = 0; i < N - (*Kc); i++) {
@@ -204,7 +167,7 @@ static int kmeans(const DTYPE* data, const int N, const int L, const int K, int 
             }
         }
 
-        // This should never happen since I check if N / Kc > K at the beginning
+        // This should never happen since I check if N / Kc > K
         // Thus there will always be at least one valid cluster
         if (closest_cluster_index == -1) {
             DEBUG_PRINT("ANN: No valid cluster found to merge with");
@@ -284,18 +247,28 @@ cleanup:
 static void *annTaskExec(void *arg) {
 
     annTask * task = (annTask *)arg;
-    int num_clusters = task->num_clusters;
+    const int num_clusters = task->num_clusters;
     int *cluster_ids = task->cluster_ids;
     ClusterIndex* cluster_index = task->cluster_index;
     int* IDX = task->IDX;
     DTYPE* D = task->D;
     const DTYPE* C = task->C;
-    int L = task->L;
-    int K = task->K;
+    const int L = task->L;
+    const int K = task->K;
+    const int N = task->N;
+    const double max_memory_usage_ratio = task->max_memory_usage_ratio;
+
     DTYPE *C_sub = NULL, *dist_sub = NULL;
     int *idx_sub = NULL;
 
-    DEBUG_PRINT("\nANN: Running thread %lu with %d assigned clusters\n", pthread_self(), num_clusters);
+    // Compute the total number of points across all clusters for the current thread
+    int total_thread_points = 0;
+    for (int c = 0; c < num_clusters; ++c) {
+        const int cid = cluster_ids[c];
+        total_thread_points += cluster_index[cid].count;
+    }
+
+    DEBUG_PRINT("\nANN: Running thread %lu with %d assigned clusters and %d points in total \n", pthread_self(), num_clusters, total_thread_points);
 
     for (int c = 0; c < num_clusters; ++c) {
         const int cid = cluster_ids[c];
@@ -326,7 +299,8 @@ static void *annTaskExec(void *arg) {
         }
 
         // Find K nearest neighbors in the submatrix
-        if (knnsearch(C_sub, C_sub, idx_sub, dist_sub, cluster_size, cluster_size, L, K + 1, 1)) {
+        const double memory_usage_ratio = max_memory_usage_ratio * (double)total_thread_points / (double)N;
+        if (a2a_knnsearch(C_sub, C_sub, idx_sub, dist_sub, cluster_size, cluster_size, L, K + 1, 0, 1, 1, memory_usage_ratio)) {
             free(C_sub);
             free(idx_sub);
             free(dist_sub);
@@ -411,8 +385,42 @@ static int distribute_clusters_by_size(int Kc, int nthreads, ClusterIndex* clust
 }
 
 
+static int check_input_args_ann(const DTYPE* C, const int N, const int L, const int K, 
+    int Kc, int* IDX, DTYPE* D, const int nthreads, 
+    const double max_memory_usage_ratio) {
+
+    if (!C || N <= 0 || L <= 0 || K <= 0 || Kc <= 0 || !IDX || !D) {
+        fprintf(stderr, "Invalid input parameters for ANN search\n");
+        return EXIT_FAILURE;
+    }
+    if (Kc > N) {
+        fprintf(stderr, "Number of clusters cannot exceed number of data points\n");
+        return EXIT_FAILURE;
+    }
+    if (N / Kc <= K) {
+        fprintf(stderr, "Number of clusters is too small for the given K\n");
+        return EXIT_FAILURE;
+    }
+    if (nthreads < 1) {
+        fprintf(stderr, "Number of threads must be at least 1\n");
+        return EXIT_FAILURE;
+    }
+    if (max_memory_usage_ratio <= 0.0 || max_memory_usage_ratio > 1.0) {
+        fprintf(stderr, "Invalid memory usage ratio: %f\n", max_memory_usage_ratio);
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+
 int a2a_annsearch(const DTYPE* C, const int N, const int L, const int K, 
-    int Kc, int* IDX, DTYPE* D, const int max_iter) {
+    int Kc, int* IDX, DTYPE* D, const int nthreads,
+    const double max_memory_usage_ratio, parallelization_type_t par_type) {
+
+    if (check_input_args_ann(C, N, L, K, Kc, IDX, D, nthreads, max_memory_usage_ratio)) {
+        return EXIT_FAILURE;
+    }
 
     int status = EXIT_FAILURE;
     int *assignments = NULL, *counts = NULL;
@@ -422,15 +430,14 @@ int a2a_annsearch(const DTYPE* C, const int N, const int L, const int K,
 
     if (Kc == 1) {
         // Fall back to exact solution
-        knn_set_num_threads(-1);  // Use all the system cores
-        if (knnsearch(C, C, IDX, D, N, N, L, K, 0)) {
+        if (a2a_knnsearch(C, C, IDX, D, N, N, L, K, 0, nthreads, 1, max_memory_usage_ratio)) {
             return EXIT_FAILURE;
         }
         return EXIT_SUCCESS;
     }
 
     // Step 1: k-means clustering
-    if (kmeans(C, N, L, K, &Kc, &assignments, &counts)) goto cleanup;
+    if (kmeans(C, N, L, K, &Kc, &assignments, &counts, nthreads, max_memory_usage_ratio)) goto cleanup;
 
     // Step 2: build cluster point index
     cluster_index = (ClusterIndex *)malloc(sizeof(ClusterIndex) * Kc);
@@ -438,35 +445,25 @@ int a2a_annsearch(const DTYPE* C, const int N, const int L, const int K,
     for (int k = 0; k < Kc; k++) cluster_index[k].indices = NULL;
 
     if (build_cluster_index(assignments, counts, N, Kc, cluster_index)) goto cleanup;
-
-    const int nthreads = ann_get_num_threads();
-    ann_set_num_threads(Kc > nthreads ? nthreads : Kc); 
-    const int NTHREADS = ann_get_num_threads();
-    DEBUG_PRINT("ANN: Running on %d threads\n", NTHREADS);
-
-    // Distribute max memory usage ratio across threads
-    double prev_max_memory_usage_ratio = knn_get_max_memory_usage_ratio();
-    knn_set_max_memory_usage_ratio(prev_max_memory_usage_ratio / NTHREADS);
     
-    threads = (pthread_t *)malloc(sizeof(pthread_t) * NTHREADS);
+    threads = (pthread_t *)malloc(sizeof(pthread_t) * nthreads);
     if (!threads) goto cleanup;
-    tasks = (annTask *)malloc(sizeof(annTask) * NTHREADS);
+    tasks = (annTask *)malloc(sizeof(annTask) * nthreads);
     if (!tasks) goto cleanup;
 
     // Distribute clusters among threads
-    if (distribute_clusters_by_size(Kc, NTHREADS, cluster_index, tasks)) goto cleanup;
+    if (distribute_clusters_by_size(Kc, nthreads, cluster_index, tasks)) goto cleanup;
 
-    // Set OpenBLAS and KNN to single-threaded mode
-    knn_set_num_threads_cblas(1);
-    knn_set_num_threads(1);
-    for (int i = 0; i < NTHREADS; ++i) {
+    for (int i = 0; i < nthreads; ++i) {
         tasks[i].cluster_index = cluster_index;
         tasks[i].L = L;
         tasks[i].K = K;
         tasks[i].C = C;
         tasks[i].D = D;
         tasks[i].IDX = IDX;
-
+        tasks[i].N = N;
+        tasks[i].max_memory_usage_ratio = max_memory_usage_ratio;
+        
         if (pthread_create(&threads[i], NULL, annTaskExec, (void *)&tasks[i])) {
             fprintf(stderr, "Error creating thread %d\n", i);
             for (int j = 0; j < i; ++j) {
@@ -476,7 +473,7 @@ int a2a_annsearch(const DTYPE* C, const int N, const int L, const int K,
         }
     }
 
-    for (int i = 0; i < NTHREADS; ++i) {
+    for (int i = 0; i < nthreads; ++i) {
         if (pthread_join(threads[i], NULL)) {
             fprintf(stderr, "Error joining thread %d\n", i);
             goto cleanup;
@@ -487,9 +484,6 @@ int a2a_annsearch(const DTYPE* C, const int N, const int L, const int K,
 
 cleanup:
 
-    // Restore previous memory usage ratio
-    knn_set_max_memory_usage_ratio(prev_max_memory_usage_ratio);
-
     // Cleanup
     if (cluster_index) {
         for (int i = 0; i < Kc; ++i) 
@@ -497,7 +491,7 @@ cleanup:
         free(cluster_index);
     }
     if (tasks) {
-        for (int i = 0; i < NTHREADS; ++i) {
+        for (int i = 0; i < nthreads; ++i) {
             if (tasks[i].cluster_ids) free(tasks[i].cluster_ids);
         }
         free(tasks);

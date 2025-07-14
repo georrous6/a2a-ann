@@ -1,5 +1,5 @@
-#include "knn.h"
-#include "Queue.h"
+#include "a2a_knn.h"
+#include "a2a_queue.h"
 #include <sys/sysinfo.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -33,60 +33,24 @@ typedef struct knnTask {
 } knnTask;
 
 
-double KNN_MAX_MEMORY_USAGE_RATIO = 0.5;
+static int get_num_threads(int nthreads, const int MAX_QUERIES_MEMORY, const int cblas_nthreads) {
 
-void knn_set_max_memory_usage_ratio(double ratio) {
-    if (ratio > 0.0 && ratio <= 1.0) {
-        KNN_MAX_MEMORY_USAGE_RATIO = ratio;
-    }
-    // else handle invalid input (e.g., ignore or print error)
-}
-
-double knn_get_max_memory_usage_ratio(void) {
-    return KNN_MAX_MEMORY_USAGE_RATIO;
-}
-
-
-void knn_set_num_threads(int n) {
-
-    const long num_cores = sysconf(_SC_NPROCESSORS_ONLN);  // Number of online processors
+    // Get the number of online processors
+    long num_cores = sysconf(_SC_NPROCESSORS_ONLN);
     if (num_cores < 1) {
         perror("sysconf\n");
-        return;
+        num_cores = 1;  // Fallback to 1 if sysconf fails
     }
 
-    n = n < 1 ? (int)num_cores : n;
+    // If the number of threads is -1 find automatically the appropriate number of threads,
+    nthreads = nthreads < 1 ? (int)num_cores : nthreads;
 
-    atomic_store(&KNN_NUM_THREADS, n);
-}
+    // If the number of queries per block is less than the minimum, set nthreads to 1
+    nthreads = MAX_QUERIES_MEMORY / nthreads < MIN_QUERIES_PER_BLOCK ? 1 : nthreads;
 
+   nthreads > 1 ? openblas_set_num_threads(1) : openblas_set_num_threads(cblas_nthreads);
 
-void knn_set_num_threads_cblas(int n) {
-
-    const long num_cores = sysconf(_SC_NPROCESSORS_ONLN);  // Number of online processors
-    if (num_cores < 1) {
-        perror("sysconf\n");
-        return;
-    }
-
-    n = n < 1 ? (int)num_cores : n;
-
-    openblas_set_num_threads(n);
-}
-
-
-int knn_get_num_threads_cblas(void) {
-    int num_threads = openblas_get_num_threads();
-    if (num_threads < 1) {
-        perror("openblas_get_num_threads\n");
-        return 1;  // Default to 1 thread if the call fails
-    }
-    return num_threads;
-}
-
-
-int knn_get_num_threads(void) {
-    return atomic_load(&KNN_NUM_THREADS);
+    return nthreads;
 }
 
 
@@ -160,9 +124,10 @@ static void qsort_(DTYPE *arr, int *idx, int l, int r) {
 }
 
 
-static int alloc_memory(DTYPE **D_all_block, int **IDX_all_block, DTYPE **sqrmag_Q_block, DTYPE **sqrmag_C, const int M, const int N, int *MAX_QUERIES_MEMORY) {
+static int alloc_memory(DTYPE **D_all_block, int **IDX_all_block, DTYPE **sqrmag_Q_block, DTYPE **sqrmag_C, 
+    const int M, const int N, int *MAX_QUERIES_MEMORY, const double max_memory_usage_ratio) {
     size_t available_memory = get_available_memory_bytes();
-    size_t max_allocable_memory = (size_t)(available_memory * KNN_MAX_MEMORY_USAGE_RATIO);
+    size_t max_allocable_memory = (size_t)(available_memory * max_memory_usage_ratio);
 
     *MAX_QUERIES_MEMORY = M; 
     size_t required_memory = (size_t)(*MAX_QUERIES_MEMORY) * (size_t)N * sizeof(int) +
@@ -174,7 +139,7 @@ static int alloc_memory(DTYPE **D_all_block, int **IDX_all_block, DTYPE **sqrmag
         *MAX_QUERIES_MEMORY = (max_allocable_memory - (size_t)N * sizeof(DTYPE)) / 
                             ((size_t)N * sizeof(int) + (size_t)N * sizeof(DTYPE) + sizeof(DTYPE));
 
-        DEBUG_PRINT("KNN: Too large distance matrix. Max queries per block: %d. Max allocable memory: %zu bytes\n", *MAX_QUERIES_MEMORY, max_allocable_memory);
+        DEBUG_PRINT("KNN: Too large distance matrix. Max queries per block: %d. Using %.2lf%% of available memory\n", *MAX_QUERIES_MEMORY, max_memory_usage_ratio * 100.0);
     }
 
     if (*MAX_QUERIES_MEMORY < 1) {
@@ -236,12 +201,12 @@ static void knnTaskExec(const knnTask *task) {
 
 
 static void *knnThreadStart(void *pool) {
-    Queue* queue = (Queue *)pool;
+    a2a_Queue* queue = (a2a_Queue *)pool;
     knnTask task;
 
     while (isActive) {
         pthread_mutex_lock(&mutexQueue);
-        while (Queue_isEmpty(queue) && isActive) {
+        while (a2a_QueueIsEmpty(queue) && isActive) {
             //DEBUG_PRINT("KNN: Thread %lu waiting...\n", pthread_self());
             pthread_cond_wait(&condQueue, &mutexQueue);
         }
@@ -254,7 +219,7 @@ static void *knnThreadStart(void *pool) {
             break;
         }
 
-        Queue_dequeue(queue, (void *)&task);
+        a2a_QueueDequeue(queue, (void *)&task);
                 
         pthread_mutex_unlock(&mutexQueue);
         
@@ -275,50 +240,67 @@ static void *knnThreadStart(void *pool) {
 }
 
 
-int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, const int N, const int L, const int K, const int sorted)
-{
+static int check_input_args_knn(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, 
+    const int M, const int N, const int L, const int K, const double cblas_nthreads, 
+    const double max_memory_usage_ratio) {
+    if (!Q || !C || !IDX || !D) {
+        fprintf(stderr, "Error: Null pointer passed to a2a_knnsearch.\n");
+        return EXIT_FAILURE;
+    }
+    if (M <= 0 || N <= 0 || L <= 0 || K <= 0) {
+        fprintf(stderr, "Error: Invalid dimensions for a2a_knnsearch (M=%d, N=%d, L=%d, K=%d).\n", M, N, L, K);
+        return EXIT_FAILURE;
+    }
+    if (K > N) {
+        fprintf(stderr, "Error: K must be less than or equal to the number of corpus points (K=%d, N=%d).\n", K, N);
+        return EXIT_FAILURE;
+    }
+    if (cblas_nthreads < 1) {
+        fprintf(stderr, "Error: Invalid number of OpenBLAS threads (%d).\n", (int)cblas_nthreads);
+        return EXIT_FAILURE;
+    }
+    if (max_memory_usage_ratio <= 0 || max_memory_usage_ratio > 1) {
+        fprintf(stderr, "Error: Invalid max memory usage ratio (%f). Must be in (0, 1].\n", max_memory_usage_ratio);
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+
+int a2a_knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, 
+    const int N, const int L, const int K, const int sorted, const int nthreads,
+    const int cblas_nthreads, const double max_memory_usage_ratio) {
+
+    if (check_input_args_knn(Q, C, IDX, D, M, N, L, K, cblas_nthreads, max_memory_usage_ratio)) {
+        return EXIT_FAILURE;
+    
+    }
     isActive = 1;
     runningTasks = 0;
     DTYPE *D_all_block = NULL, *sqrmag_Q_block = NULL, *sqrmag_C = NULL;
     int *IDX_all_block = NULL;
     int MAX_QUERIES_MEMORY;  // The maximum number of queries that can be stored in memory
     int status = EXIT_FAILURE;
-    if (K <= 0) {
-        fprintf(stderr, "Invalid value for K: %d\n", K);
-        return status;
-    }
-    if (K > N) {
-        fprintf(stderr, "K must be smaller or equal to the corpus size (K=%d, N=%d)\n", K, N);
-        return status;
-    }
 
     // Allocate the appropriate amount of memory for the matrices and compute the
     // maximum number of queries that can be proccessed
-    if (alloc_memory(&D_all_block, &IDX_all_block, &sqrmag_Q_block, &sqrmag_C, M, N, &MAX_QUERIES_MEMORY)) {
+    if (alloc_memory(&D_all_block, &IDX_all_block, &sqrmag_Q_block, &sqrmag_C, M, N, &MAX_QUERIES_MEMORY, max_memory_usage_ratio)) {
         fprintf(stderr, "knnsearch: Error allocating memory\n");
         return status;
     }
 
-    // if the number of threads is -1 find automatically the appropriate number of threads, 
-    // otherwise use the number of threads the user passed explicitly
-    int nthreads = knn_get_num_threads();
-    if (MAX_QUERIES_MEMORY / nthreads < KNN_MIN_QUERIES_PER_BLOCK) {
-        knn_set_num_threads(1);
-    }
-    const int NTHREADS = knn_get_num_threads();
-    if (NTHREADS > 1) {
-        knn_set_num_threads_cblas(1);
-    }
+    const int NTHREADS = get_num_threads(nthreads, MAX_QUERIES_MEMORY, cblas_nthreads);
 
     DEBUG_PRINT("KNN: Running on %d threads (OpenBLAS threads: %d)\n", NTHREADS, openblas_get_num_threads());
 
     pthread_t* threads = NULL;
     pthread_attr_t attr;
-    Queue tasksQueue;
+    a2a_Queue tasksQueue;
 
     // Create the threads if multithreading is desired
     if (NTHREADS > 1) {
-        Queue_init(&tasksQueue, sizeof(knnTask));
+        a2a_QueueInit(&tasksQueue, sizeof(knnTask));
         pthread_attr_init(&attr);
         pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
         pthread_mutex_init(&mutexQueue, NULL);
@@ -364,7 +346,7 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
             sqrmag_Q_block[i] = DOT(L, Q + (i + q_index) * L, 1, Q + (i + q_index) * L, 1);
         }
         
-        DEBUG_PRINT("KNN: Processing block with %d queries\n", QUERIES_NUM_BLOCK);
+        DEBUG_PRINT("KNN: Processing block with %d queries (using %.2lf%% of available memory)\n", QUERIES_NUM_BLOCK, max_memory_usage_ratio * 100.0);
         if (NTHREADS == 1) { // no multithreading
             knnTask task = {
                 .C = C, 
@@ -399,7 +381,7 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
                     .q_index = q_index,
                     .q_index_thread = 0
                 };
-                Queue_enqueue(&tasksQueue, (void *)&task);  // add task to the queue
+                a2a_QueueEnqueue(&tasksQueue, (void *)&task);  // add task to the queue
                 runningTasks++;
             }
             else { // split workload accross all the threads
@@ -427,7 +409,7 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
                         .q_index = q_index_thread + q_index,
                         .q_index_thread = q_index_thread
                     };
-                    Queue_enqueue(&tasksQueue, (void *)&task);  // add task to the queue
+                    a2a_QueueEnqueue(&tasksQueue, (void *)&task);  // add task to the queue
                     runningTasks++;
                     q_index_thread += QUERIES_NUM_THREAD;
                 }
@@ -477,7 +459,7 @@ int knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, c
 
 cleanup:
     if (NTHREADS > 1) {
-        Queue_destroy(&tasksQueue);
+        a2a_QueueDestroy(&tasksQueue);
         pthread_attr_destroy(&attr);
         pthread_mutex_destroy(&mutexQueue);
         pthread_cond_destroy(&condQueue);

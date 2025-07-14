@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "ioutil.h"
-#include "knn.h"
+#include "a2a_knn.h"
 
 
 // Function to set terminal color
@@ -18,12 +18,13 @@ void setColor(const char *colorCode)
 #define BOLD_BLUE      "\033[1;34m"
 
 #define TOLERANCE 1e-6
+#define MAX_MEMORY_USAGE_RATIO 0.1
 
 
 int test_case(const char *filename, double tolerance)
 {
     setColor(BOLD_BLUE);
-    printf("Running test %s ...       ", filename);
+    printf("Running test file %s ...\n", filename);
     setColor(DEFAULT);
     int M, N, L, K;
     double *train = NULL, *test = NULL, *my_distances = NULL, *distances = NULL;
@@ -61,8 +62,8 @@ int test_case(const char *filename, double tolerance)
     // memory allocation for the estimated index matrix
     my_neighbors = (int *)malloc(M * K * sizeof(int)); if (!my_neighbors) goto cleanup;
 
-    knn_set_num_threads(-1);
-    if (knnsearch(test, train, my_neighbors, my_distances, M, N, L, K, 1)) goto cleanup;
+    if (a2a_knnsearch(test, train, my_neighbors, my_distances, M, N, L, K, 1, -1, 1, 
+        MAX_MEMORY_USAGE_RATIO)) goto cleanup;
 
     // test the output with the estimated one
     double x, y;

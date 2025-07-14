@@ -1,10 +1,10 @@
-#include "Queue.h"
+#include "a2a_queue.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 
-void Queue_init(Queue *q, size_t dataSize) 
+void a2a_QueueInit(a2a_Queue *q, size_t dataSize) 
 {
     q->front = q->rear = NULL;
     q->dataSize = dataSize;
@@ -12,15 +12,15 @@ void Queue_init(Queue *q, size_t dataSize)
 }
 
 
-int Queue_isEmpty(Queue *q) 
+int a2a_QueueIsEmpty(a2a_Queue *q) 
 {
     return q->n_elements == 0;
 }
 
 
-int Queue_enqueue(Queue *q, const void *element) 
+int a2a_QueueEnqueue(a2a_Queue *q, const void *element) 
 {
-    QueueNode *newNode = (QueueNode *)malloc(sizeof(QueueNode));
+    a2a_QueueNode *newNode = (a2a_QueueNode *)malloc(sizeof(a2a_QueueNode));
     if (!newNode)
     {
         fprintf(stderr, "Cannot add element to the queue\n");
@@ -36,7 +36,7 @@ int Queue_enqueue(Queue *q, const void *element)
     memcpy(newNode->data, element, q->dataSize);
     newNode->next = NULL;
 
-    if (Queue_isEmpty(q)) 
+    if (a2a_QueueIsEmpty(q)) 
     {
         q->front = q->rear = newNode;
     } else 
@@ -49,14 +49,14 @@ int Queue_enqueue(Queue *q, const void *element)
 }
 
 
-int Queue_dequeue(Queue *q, void *element) 
+int a2a_QueueDequeue(a2a_Queue *q, void *element) 
 {
-    if (Queue_isEmpty(q)) 
+    if (a2a_QueueIsEmpty(q)) 
     {
         fprintf(stderr, "Queue is empty\n");
         return 0;
     }
-    QueueNode *temp = q->front;
+    a2a_QueueNode *temp = q->front;
     memcpy(element, temp->data, q->dataSize);
 
     q->front = q->front->next;
@@ -73,12 +73,12 @@ int Queue_dequeue(Queue *q, void *element)
 
 
 // Free all nodes in the queue
-void Queue_destroy(Queue *q) 
+void a2a_QueueDestroy(a2a_Queue *q) 
 {
-    QueueNode *current = q->front;
+    a2a_QueueNode *current = q->front;
     while (current != NULL) 
     {
-        QueueNode *temp = current;
+        a2a_QueueNode *temp = current;
         current = current->next;
         free(temp->data);
         free(temp);

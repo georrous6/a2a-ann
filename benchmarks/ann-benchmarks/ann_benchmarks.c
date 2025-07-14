@@ -4,7 +4,6 @@
 #include <string.h>
 #include "ioutil.h"
 #include "a2a_ann.h"
-#include "knn.h"
 
 
 // Function to set terminal color
@@ -19,8 +18,9 @@ void setColor(const char *colorCode)
 #define BOLD_GREEN     "\033[1;32m"
 #define BOLD_BLUE      "\033[1;34m"
 
-#define THREAD_CASES 6   // Number of thread cases to benchmark
+#define THREAD_CASES 5   // Number of thread cases to benchmark
 #define CLUSTER_CASES 5  // Number of cluster cases to benchmark
+#define MAX_MEMORY_USAGE_RATIO 0.5
 
 
 int ann_benchmark(const char *filename, int *nthreads, int *num_clusters, const char *output_file)
@@ -73,10 +73,10 @@ int ann_benchmark(const char *filename, int *nthreads, int *num_clusters, const 
 
     for (int t = 0; t < THREAD_CASES; t++) {
         for (int c = 0; c < CLUSTER_CASES; c++) {
-            ann_set_num_threads(nthreads[t]);
-            knn_set_max_memory_usage_ratio(0.5);
+            
             gettimeofday(&tstart, NULL);
-            if (a2a_annsearch(train_test, N, L, K, num_clusters[c], my_all_to_all_neighbors, my_all_to_all_distances, max_iter)) goto cleanup;
+            if (a2a_annsearch(train_test, N, L, K, num_clusters[c], my_all_to_all_neighbors, 
+                my_all_to_all_distances, nthreads[t], MAX_MEMORY_USAGE_RATIO, PARALLEL_PTHREADS)) goto cleanup;
             gettimeofday(&tend, NULL);
             long execution_time_usec = (tend.tv_sec - tstart.tv_sec) * 1000000L + (tend.tv_usec - tstart.tv_usec);
             execution_time[t][c] = execution_time_usec / 1e6f;  // Convert to seconds
@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
 
     srand(0);
 
-    int ann_nthreads[THREAD_CASES] = {1, 2, 4, 8, 16, 32};
+    int ann_nthreads[THREAD_CASES] = {1, 2, 4, 8, 16};
     int num_clusters[CLUSTER_CASES] = {5, 10, 20, 50, 100};
 
     if (ann_benchmark(argv[1], ann_nthreads, num_clusters, argv[2])) 

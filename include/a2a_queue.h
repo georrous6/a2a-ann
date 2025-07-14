@@ -1,25 +1,25 @@
-#ifndef QUEUE_H
-#define QUEUE_H
+#ifndef A2A_QUEUE_H
+#define A2A_QUEUE_H
 #include <stddef.h>
 
 
 /**
  * The nodes of the queue
  */
-typedef struct QueueNode {
+typedef struct a2a_QueueNode {
     void *data;
-    struct QueueNode *next;
-} QueueNode;
+    struct a2a_QueueNode *next;
+} a2a_QueueNode;
 
 /**
  * Basic Queue implementation used by thread pools
  */
-typedef struct Queue {
-    QueueNode *front;
-    QueueNode *rear;
+typedef struct a2a_Queue {
+    a2a_QueueNode *front;
+    a2a_QueueNode *rear;
     size_t dataSize;
     int n_elements;
-} Queue;
+} a2a_Queue;
 
 /**
  * Initialize the queue with the size of the data type
@@ -27,7 +27,7 @@ typedef struct Queue {
  * @param q the queue to initialize
  * @param dataSize the size of the data
  */
-void Queue_init(Queue *q, size_t dataSize);
+void a2a_QueueInit(a2a_Queue *q, size_t dataSize);
 
 /**
  * Check if the queue is empty
@@ -35,7 +35,7 @@ void Queue_init(Queue *q, size_t dataSize);
  * @param q the queue
  * @return 1 if the queue is empty and 0 otherwise
  */
-int Queue_isEmpty(Queue *q);
+int a2a_QueueIsEmpty(a2a_Queue *q);
 
 /**
  * Enqueue an element to the queue
@@ -44,7 +44,7 @@ int Queue_isEmpty(Queue *q);
  * @param element the element to enqueue
  * @return 1 on success and 0 if an error occured
  */
-int Queue_enqueue(Queue *q, const void *element);
+int a2a_QueueEnqueue(a2a_Queue *q, const void *element);
  
 
 /**
@@ -54,7 +54,7 @@ int Queue_enqueue(Queue *q, const void *element);
  * @param element the element to add
  * @return 1 on success and 0 if the queue is empty
  */
-int Queue_dequeue(Queue *q, void *element);
+int a2a_QueueDequeue(a2a_Queue *q, void *element);
 
 
 /** 
@@ -62,6 +62,6 @@ int Queue_dequeue(Queue *q, void *element);
  * 
  * @param q the queue to be destroyed
  */
-void Queue_destroy(Queue *q);
+void a2a_QueueDestroy(a2a_Queue *q);
 
 #endif

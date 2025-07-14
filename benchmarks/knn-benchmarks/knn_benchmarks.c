@@ -3,7 +3,7 @@
 #include <sys/time.h>
 #include <string.h>
 #include "ioutil.h"
-#include "knn.h"
+#include "a2a_knn.h"
 
 
 // Function to set terminal color
@@ -19,6 +19,7 @@ void setColor(const char *colorCode)
 #define BOLD_BLUE      "\033[1;34m"
 
 #define THREAD_CASES 7   // Number of thread cases to benchmark
+#define MAX_MEMORY_USAGE_RATIO 0.5
 
 
 int knn_benchmark(const char *filename, int *nthreads, int *cblas_nthreads, const char *output_file)
@@ -55,10 +56,10 @@ int knn_benchmark(const char *filename, int *nthreads, int *cblas_nthreads, cons
 
 
     for (int t = 0; t < THREAD_CASES; t++) {
-        knn_set_num_threads(nthreads[t]);
-        knn_set_num_threads_cblas(cblas_nthreads[t]);
+        
         gettimeofday(&tstart, NULL);
-        if (knnsearch(test, train, my_neighbors, my_distances, M, N, L, K, 1)) goto cleanup;
+        if (a2a_knnsearch(test, train, my_neighbors, my_distances, M, N, L, K, 0, nthreads[t], 
+            cblas_nthreads[t], MAX_MEMORY_USAGE_RATIO)) goto cleanup;
         gettimeofday(&tend, NULL);
         long execution_time_usec = (tend.tv_sec - tstart.tv_sec) * 1000000L + (tend.tv_usec - tstart.tv_usec);
         execution_time[t] = execution_time_usec / 1e6f;  // Convert to seconds
@@ -90,11 +91,12 @@ int knn_benchmark(const char *filename, int *nthreads, int *cblas_nthreads, cons
         printf("Execution time: %f sec\n", execution_time[t]);
         printf("Recall: %.4f%%\n", recall[t]);
         printf("Queries per sec: %.4f\n", queries_per_sec[t]);
-    }
 
-    store_hdf5(nthreads, "nthreads", 1, THREAD_CASES, output_file, INT_TYPE, 'w');
-    store_hdf5(queries_per_sec, "queries_per_sec", 1, THREAD_CASES, output_file, FLOAT_TYPE, 'a');
-    store_hdf5(recall, "recall", 1, THREAD_CASES, output_file, FLOAT_TYPE, 'a');
+        // Save data on every iteration
+        store_hdf5(nthreads, "nthreads", 1, t + 1, output_file, INT_TYPE, 'w');
+        store_hdf5(queries_per_sec, "queries_per_sec", 1, t + 1, output_file, FLOAT_TYPE, 'a');
+        store_hdf5(recall, "recall", 1, t + 1, output_file, FLOAT_TYPE, 'a');
+    }
 
     status = EXIT_SUCCESS;
 
@@ -118,7 +120,7 @@ int main(int argc, char *argv[])
     }
 
     int knn_nthreads[THREAD_CASES] = {1, 1, 2, 4, 8, 16, 32};
-    int cblas_nthreads[THREAD_CASES] = {-1, 1, 1, 1, 1, 1, 1}; // OpenBLAS threads
+    int cblas_nthreads[THREAD_CASES] = {4, 1, 1, 1, 1, 1, 1}; // OpenBLAS threads
 
     if (knn_benchmark(argv[1], knn_nthreads, cblas_nthreads, argv[2])) 
     {
