@@ -40,7 +40,6 @@ void ann_set_num_threads(int n) {
     }
 
     n = n < 1 ? (int)num_cores : n;
-    printf("Setting number of threads to %d\n", n);
 
     atomic_store(&ANN_NUM_THREADS, n);
 }
@@ -78,86 +77,207 @@ static int build_cluster_index(const int* assignments, const int* counts, const 
 }
 
 
-static int kmeans(const DTYPE* data, int N, int L, int K, 
-    DTYPE* centroids, int* assignments, int* counts, int max_iter) {
+static int kmeans(const DTYPE* data, const int N, const int L, const int K, int *Kc, int **assignments, int **counts) {
 
-    int* chosen = calloc(N, sizeof(int));
-    if (!chosen) return EXIT_FAILURE;
-    int selected = 0;
+    *assignments = NULL;
+    *counts = NULL;
+
+    if (*Kc <= 0 || N <= 0 || L <= 0) {
+        fprintf(stderr, "Invalid parameters for k-means clustering\n");
+        return EXIT_FAILURE;
+    }
+    if (*Kc > N) {
+        fprintf(stderr, "Number of clusters cannot exceed number of data points\n");
+        return EXIT_FAILURE;
+    }
+    if (N / (*Kc) <= K) {
+        fprintf(stderr, "Number of clusters is too small for the given K\n");
+        return EXIT_FAILURE;
+    }
+    if (*Kc == 1) {
+        *assignments = (int *)malloc(N * sizeof(int));
+        *counts = (int *)malloc(sizeof(int));
+        if (!(*assignments) || !(*counts)) return EXIT_FAILURE;
+        memset(*assignments, 0, N * sizeof(int));
+        (*counts)[0] = N;
+        return EXIT_SUCCESS;
+    }
+
+    DTYPE *centroids = NULL, *queries = NULL, *D = NULL;
+    int *chosen = NULL, *IDX, *queries_map = NULL, *valid_clusters = NULL;
+    int *tmp_assignments = NULL, *tmp_counts = NULL;
+    int status = EXIT_FAILURE;
+
+    centroids = (DTYPE *)malloc((*Kc) * L * sizeof(DTYPE));
+    queries = (DTYPE *)malloc((N - (*Kc)) * L * sizeof(DTYPE));
+    chosen = (int *)calloc(N, sizeof(int));
+    queries_map = (int *)malloc((N - (*Kc)) * sizeof(int));
+    IDX = (int *)malloc((N - (*Kc)) * sizeof(int));
+    D = (DTYPE *)malloc((N - (*Kc)) * (*Kc) * sizeof(DTYPE));
+    valid_clusters = (int *)malloc((*Kc) * sizeof(int));
+    tmp_assignments = (int *)malloc(N * sizeof(int));
+    tmp_counts = (int *)malloc((*Kc) * sizeof(int));
+
+    if (!chosen || !centroids || !queries || !queries_map || !IDX || 
+        !valid_clusters || !tmp_assignments || !tmp_counts || !D) {
+        fprintf(stderr, "Error allocating memory for k-means clustering\n");
+        goto cleanup;
+    }
 
     // Initialize centroids by randomly selecting K points from data
-    while (selected < K) {
+    int centroid_idx = 0;
+    memset(tmp_counts, 0, (*Kc) * sizeof(int));  // Set counts to zero
+    while (centroid_idx < *Kc) {
         int r = rand() % N;
         if (!chosen[r]) {
-            memcpy(centroids + selected * L, data + r * L, L * sizeof(DTYPE));
+            memcpy(centroids + centroid_idx * L, data + r * L, L * sizeof(DTYPE));
             chosen[r] = 1;
-            selected++;
+            tmp_counts[centroid_idx]++;
+            tmp_assignments[r] = centroid_idx++;
         }
     }
-    free(chosen);
 
-    DTYPE* new_centroids = calloc(K * L, sizeof(DTYPE));
-    if (!new_centroids) return EXIT_FAILURE;
-    for (int i = 0; i < N; ++i) assignments[i] = -1;  // force at least one change
+    // Initialize queries by copying the non-chosen points
+    int query_idx = 0;
+    for (int i = 0; i < N; i++) {
+        if (!chosen[i]) {
+            memcpy(queries + query_idx * L, data + i * L, L * sizeof(DTYPE));
+            queries_map[query_idx++] = i;  // map query index to original index
+        }
+    }
+    free(chosen); chosen = NULL;
 
-    // Main k-means loop
-    for (int iter = 0; iter < max_iter; ++iter) {
+    // Assign each query to the nearest centroid
+    knn_set_num_threads(-1);  // Use all the system cores
+    if (knnsearch(queries, centroids, IDX, D, N - (*Kc), *Kc, L, 1, 0)) goto cleanup;
 
-        int changed = 0; // Track if any assignment changed
+    // Map the indices back to the original data points
+    for (int i = 0; i < N - (*Kc); i++) {
+        int query_original_idx = queries_map[i];
+        int cluster_index = IDX[i];
+        tmp_counts[cluster_index]++;
+        tmp_assignments[query_original_idx] = cluster_index;
+    }
+    free(IDX); IDX = NULL;
 
-        // Loop over all points to assign them to the nearest centroid
-        for (int i = 0; i < N; ++i) {
-            DTYPE best_dist = INF;
-            int best_k = -1;
+    // Compute the new centroids by averaging the assigned points
+    memset(centroids, 0, (*Kc) * L * sizeof(DTYPE));
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < L; j++) {
+            centroids[tmp_assignments[i] * L + j] += data[i * L + j];
+        }
+    }
 
-            // Loop over all centroids to find the closest one
-            for (int k = 0; k < K; ++k) {
-                DTYPE d = distance_squared(data + i * L, centroids + k * L, L);
-                if (d < best_dist) {
-                    best_dist = d;
-                    best_k = k;
+    for (int i = 0; i < *Kc; i++) {
+        for (int j = 0; j < L; j++) {
+            centroids[i * L + j] /= tmp_counts[i];
+        }
+    }
+
+    // Merge clusters that have size smaller than K to the closest centroid to them
+    memset(valid_clusters, 1, (*Kc) * sizeof(int));  // Set all clusters as valid initially
+    int Kc_new = *Kc;
+    while (1) {
+        int invalid_cluster_index = -1;
+        // Find the first invalid cluster (size < K)
+        for (int i = 0; i < *Kc; i++) {
+            if (tmp_counts[i] < K && valid_clusters[i]) {
+                invalid_cluster_index = i;
+                break;
+            }
+        }
+
+        if (invalid_cluster_index == -1) break;
+        valid_clusters[invalid_cluster_index] = 0;  // Mark as invalid
+
+        int closest_cluster_index = -1;  // Index of the closest valid cluster
+        DTYPE min_dist = INF;
+
+        // Find the closest valid cluster to the invalid one
+        for (int i = 0; i < *Kc; i++) {
+            if (valid_clusters[i] && i != invalid_cluster_index) {
+                DTYPE dist = distance_squared(centroids + invalid_cluster_index * L, centroids + i * L, L);
+                if (dist < min_dist) {  // If the distance is very small, merge
+                    closest_cluster_index = i;
+                    min_dist = dist;
                 }
             }
-
-            // If the best cluster is different from the previous assignment,
-            // mark it as changed and update the assignment.
-            if (best_k != assignments[i]) changed = 1;
-
-            assignments[i] = best_k;
         }
 
-        if (!changed) break;  // No change in assignments, exit early
-
-        // Reset centroid accumulators
-        memset(counts, 0, sizeof(int) * K);
-        for (int i = 0; i < K * L; ++i) new_centroids[i] = SUFFIX(0.0);
-
-        // For each cluster k, recompute its centroid as the mean of 
-        // all points assigned to it.
-        for (int i = 0; i < N; ++i) {
-            int k = assignments[i];
-            for (int j = 0; j < L; ++j)
-                new_centroids[k * L + j] += data[i * L + j];
-            counts[k]++;
+        // This should never happen since I check if N / Kc > K at the beginning
+        // Thus there will always be at least one valid cluster
+        if (closest_cluster_index == -1) {
+            DEBUG_PRINT("ANN: No valid cluster found to merge with");
+            goto cleanup;
         }
+        DEBUG_PRINT("ANN: Merging cluster %d -> %d\n", invalid_cluster_index, closest_cluster_index);
 
-        for (int k = 0; k < K; ++k) {
-            // If the cluster has points, average them; otherwise, reinitialize
-            // the centroid randomly from the data.
-            if (counts[k] > 0) {
-                for (int j = 0; j < L; ++j)
-                    new_centroids[k * L + j] /= counts[k];
-            } else {
-                int r = rand() % N;
-                memcpy(new_centroids + k * L, data + r * L, sizeof(DTYPE) * L);
+        tmp_counts[closest_cluster_index] += tmp_counts[invalid_cluster_index];
+
+        // Recompute the centroid of the closest cluster
+        memset(centroids + closest_cluster_index * L, 0, L * sizeof(DTYPE));  // Reset the closest centroid
+        for (int i = 0; i < N; i++) {
+            if (tmp_assignments[i] == invalid_cluster_index) {
+                tmp_assignments[i] = closest_cluster_index;
+            }
+
+            // now add all points that are assigned to the closest cluster
+            if (tmp_assignments[i] == closest_cluster_index) {
+                for (int j = 0; j < L; j++) {
+                    centroids[closest_cluster_index * L + j] += data[i * L + j];
+                }
             }
         }
 
-        memcpy(centroids, new_centroids, sizeof(DTYPE) * K * L);
+        for (int j = 0; j < L; j++) {
+            centroids[closest_cluster_index * L + j] /= tmp_counts[closest_cluster_index];
+        }
+
+        Kc_new--;  // Reduce the number of clusters
     }
 
-    free(new_centroids);
-    return EXIT_SUCCESS;
+    *assignments = (int *)malloc(N * sizeof(int));
+    *counts = (int *)malloc(Kc_new * sizeof(int));
+    if (!(*assignments) || !(*counts)) {
+        fprintf(stderr, "Error allocating memory for k-means clustering\n");
+        goto cleanup;
+    }
+
+    // Reassign the assignments to the new clusters
+    int cluster_index = 0;
+    for (int i = 0; i < *Kc; i++) {
+        if (valid_clusters[i]) {
+            for (int j = 0; j < N; j++) {
+                if (tmp_assignments[j] == i) {
+                    (*assignments)[j] = cluster_index;
+                }
+            }
+            (*counts)[cluster_index++] = tmp_counts[i];
+        }
+    }
+    *Kc = Kc_new;
+    DEBUG_PRINT("ANN: K-means clustering completed with %d clusters\n", *Kc);
+
+    status = EXIT_SUCCESS;
+
+cleanup:
+    if (queries) free(queries);
+    if (queries_map) free(queries_map);
+    if (IDX) free(IDX);
+    if (D) free(D);
+    if (chosen) free(chosen);
+    if (centroids) free(centroids);
+    if (valid_clusters) free(valid_clusters);
+    if (tmp_assignments) free(tmp_assignments);
+    if (tmp_counts) free(tmp_counts);
+    if (status != EXIT_SUCCESS) {
+        if (*assignments) free(*assignments);
+        if (*counts) free(*counts);
+        *assignments = NULL;
+        *counts = NULL;
+    }
+
+    return status;
 }
 
 
@@ -175,11 +295,15 @@ static void *annTaskExec(void *arg) {
     DTYPE *C_sub = NULL, *dist_sub = NULL;
     int *idx_sub = NULL;
 
+    DEBUG_PRINT("\nANN: Running thread %lu with %d assigned clusters\n", pthread_self(), num_clusters);
 
     for (int c = 0; c < num_clusters; ++c) {
         const int cid = cluster_ids[c];
         int cluster_size = cluster_index[cid].count;
-        if (cluster_size == 0) continue;
+        DEBUG_PRINT("\nANN: Solving cluster %d with %d points\n", cid, cluster_size);
+        
+        // This should never happen
+        DEBUG_ASSERT(cluster_size > 0, "ANN: Cluster size must be greater than 0\n");
 
         int* indices = cluster_index[cid].indices;
 
@@ -242,7 +366,7 @@ static int distribute_clusters_by_size(int Kc, int nthreads, ClusterIndex* clust
     int* thread_load = calloc(nthreads, sizeof(int));
     if (!thread_load) return EXIT_FAILURE;
 
-    ClusterSizeEntry* entries = malloc(sizeof(ClusterSizeEntry) * Kc);
+    ClusterSizeEntry* entries = (ClusterSizeEntry *)malloc(sizeof(ClusterSizeEntry) * Kc);
     if (!entries) {
         free(thread_load);
         return EXIT_FAILURE;
@@ -288,25 +412,16 @@ static int distribute_clusters_by_size(int Kc, int nthreads, ClusterIndex* clust
 
 
 int a2a_annsearch(const DTYPE* C, const int N, const int L, const int K, 
-    const int Kc, int* IDX, DTYPE* D, const int max_iter) {
+    int Kc, int* IDX, DTYPE* D, const int max_iter) {
 
     int status = EXIT_FAILURE;
     int *assignments = NULL, *counts = NULL;
-    DTYPE *centroids = NULL;
     ClusterIndex* cluster_index = NULL;
     pthread_t *threads = NULL;
     annTask* tasks = NULL;
 
-    // Allocate local memory for assignments and centroids
-    assignments = (int *)malloc(sizeof(int) * N);
-    centroids = (DTYPE *)malloc(sizeof(DTYPE) * Kc * L);
-    counts = (int *)calloc(Kc, sizeof(int));
-
-    if (!assignments || !centroids || !counts) goto cleanup;
-
     // Step 1: k-means clustering
-    DEBUG_PRINT("ANN: Creating %d clusters...\n", Kc);
-    if (kmeans(C, N, L, Kc, centroids, assignments, counts, max_iter)) goto cleanup;
+    if (kmeans(C, N, L, K, &Kc, &assignments, &counts)) goto cleanup;
 
     // Step 2: build cluster point index
     cluster_index = (ClusterIndex *)malloc(sizeof(ClusterIndex) * Kc);
@@ -373,7 +488,6 @@ cleanup:
     }
     if (threads) free(threads);
     if (assignments) free(assignments);
-    if (centroids) free(centroids);
     if (counts) free(counts);
 
     return status;

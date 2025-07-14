@@ -6,8 +6,8 @@
 #include "a2a_ann.h"
 #include "knn.h"
 
-#define NUM_THREADS 4    // Number of threads
-#define NUM_CLUSTERS 2  // Number of clusters
+#define NUM_THREADS 1    // Number of threads
+#define NUM_CLUSTERS 50  // Number of clusters
 
 
 int main(int argc, char *argv[])
@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    srand(0);
+    srand(42);
 
     const char *filename = argv[1];
 
@@ -48,6 +48,8 @@ int main(int argc, char *argv[])
     train_test = (float *)malloc(N * L * sizeof(float)); if (!train_test) goto cleanup;
     memcpy(train_test, train, aa * L * sizeof(float));
     memcpy(train_test + aa * L, test, cc * L * sizeof(float));
+    free(train); train = NULL;
+    free(test); test = NULL;
 
     // load expected indices matrix from file
     all_to_all_neighbors = (int *)load_hdf5(filename, "/all_to_all_neighbors", &aa, &bb); if (!all_to_all_neighbors) goto cleanup;
@@ -65,7 +67,7 @@ int main(int argc, char *argv[])
     my_all_to_all_neighbors = (int *)malloc(N * K * sizeof(int)); if (!my_all_to_all_neighbors) goto cleanup;
 
 
-    knn_set_max_memory_usage_ratio(0.1);
+    knn_set_max_memory_usage_ratio(0.2);
     ann_set_num_threads(NUM_THREADS);
     gettimeofday(&tstart, NULL);
     if (a2a_annsearch(train_test, N, L, K, NUM_CLUSTERS, my_all_to_all_neighbors, my_all_to_all_distances, max_iter)) goto cleanup;
