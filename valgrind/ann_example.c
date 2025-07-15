@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 
     gettimeofday(&tstart, NULL);
     if (a2a_annsearch(train_test, N, L, K, NUM_CLUSTERS, my_all_to_all_neighbors, 
-        my_all_to_all_distances, NUM_THREADS, MAX_MEMORY_USAGE_RATIO, PARALLEL_PTHREADS)) goto cleanup;
+        my_all_to_all_distances, NUM_THREADS, MAX_MEMORY_USAGE_RATIO, PAR_PTHREADS)) goto cleanup;
     gettimeofday(&tend, NULL);
     long execution_time_usec = (tend.tv_sec - tstart.tv_sec) * 1000000L + (tend.tv_usec - tstart.tv_usec);
     execution_time = execution_time_usec / 1e6f;  // Convert to seconds

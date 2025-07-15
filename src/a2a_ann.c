@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <sys/sysinfo.h>
 #include <unistd.h>
+#include <stdatomic.h>
 #include "a2a_ann.h"
 
 
@@ -268,6 +269,10 @@ static void *annTaskExec(void *arg) {
         total_thread_points += cluster_index[cid].count;
     }
 
+    int *retval = (int *)malloc(sizeof(int));
+    if (!retval) return NULL;
+    *retval = EXIT_SUCCESS;
+
     DEBUG_PRINT("\nANN: Running thread %lu with %d assigned clusters and %d points in total \n", pthread_self(), num_clusters, total_thread_points);
 
     for (int c = 0; c < num_clusters; ++c) {
@@ -288,7 +293,8 @@ static void *annTaskExec(void *arg) {
             if (C_sub) free(C_sub);
             if (idx_sub) free(idx_sub);
             if (dist_sub) free(dist_sub);
-            pthread_exit(NULL);
+            free(retval);
+            return NULL;
         }
 
         // Construct a submatrix of C for the current cluster
@@ -304,7 +310,8 @@ static void *annTaskExec(void *arg) {
             free(C_sub);
             free(idx_sub);
             free(dist_sub);
-            pthread_exit(NULL);
+            free(retval);
+            return NULL;
         }
 
         // Fill the output matrices IDX and D
@@ -325,7 +332,7 @@ static void *annTaskExec(void *arg) {
         free(dist_sub);
     }
 
-    pthread_exit(NULL);
+    return (void *)retval;
 }
 
 
@@ -414,6 +421,115 @@ static int check_input_args_ann(const DTYPE* C, const int N, const int L, const 
 }
 
 
+static int pthreads_parallelization(annTask* tasks, int nthreads) {
+
+    int status = EXIT_FAILURE;
+    pthread_t *threads = (pthread_t *)malloc(sizeof(pthread_t) * nthreads);
+    if (!threads) return EXIT_FAILURE;
+
+    for (int i = 0; i < nthreads; ++i) {
+        
+        if (pthread_create(&threads[i], NULL, annTaskExec, (void *)&tasks[i])) {
+            fprintf(stderr, "Error creating thread %d\n", i);
+            for (int j = 0; j < i; ++j) {
+                pthread_join(threads[j], NULL);
+            }
+            goto cleanup;
+        }
+    }
+
+    for (int i = 0; i < nthreads; ++i) {
+        void *retval = NULL;
+        if (pthread_join(threads[i], &retval)) {
+            fprintf(stderr, "Error joining thread %d\n", i);
+            goto cleanup;
+        }
+
+        if (retval == NULL) {
+            fprintf(stderr, "Thread %d returned NULL\n", i);
+            goto cleanup;
+        }
+        int *thread_status = (int *)retval;
+        if (*thread_status != EXIT_SUCCESS) {
+            fprintf(stderr, "Thread %d failed with status %d\n", i, *thread_status);
+            free(retval);
+            goto cleanup;
+        }
+    }
+
+    status = EXIT_SUCCESS;
+
+    cleanup:
+    free(threads);
+    return status;
+}
+
+
+static int openmp_parallelization(annTask* tasks, int nthreads) {
+    #ifndef USE_OPENCILK
+        int status = EXIT_SUCCESS;
+        #pragma omp parallel num_threads(nthreads)
+        {
+            int tid = omp_get_thread_num();
+            annTask *task = &tasks[tid];
+            void *retval = annTaskExec((void *)task);
+
+            if (retval == NULL) {
+                #pragma omp critical
+                {
+                    fprintf(stderr, "Error executing task in OpenMP thread %d\n", tid);
+                    status = EXIT_FAILURE;
+                }
+            } else {
+                int *thread_status = (int *)retval;
+                if (*thread_status != EXIT_SUCCESS) {
+                    #pragma omp critical
+                    {
+                        fprintf(stderr, "Task in OpenMP thread %d failed with status %d\n", tid, *thread_status);
+                        status = EXIT_FAILURE;
+                    }
+                }
+                free(retval);
+            }
+        }
+
+        return status;
+    #else
+        fprintf(stderr, "OpenMP is not enabled in this build\n");
+        return EXIT_FAILURE;
+    #endif
+}
+
+
+static int opencilk_parallelization(annTask* tasks, int nthreads) {
+    #ifdef USE_OPENCILK
+        atomic_int status = ATOMIC_VAR_INIT(EXIT_SUCCESS);
+
+        cilk_for (int i = 0; i < nthreads; ++i) {
+            annTask *task = &tasks[i];
+            void *retval = annTaskExec((void *)task);
+
+            if (retval == NULL) {
+                fprintf(stderr, "Error executing task in OpenCilk thread %d\n", i);
+                atomic_store(&status, EXIT_FAILURE);
+            } else {
+                int *thread_status = (int *)retval;
+                if (*thread_status != EXIT_SUCCESS) {
+                    fprintf(stderr, "Task in OpenCilk thread %d failed with status %d\n", i, *thread_status);
+                    atomic_store(&status, EXIT_FAILURE);
+                }
+                free(retval);
+            }
+        }
+
+        return atomic_load(&status);
+    #else
+        fprintf(stderr, "OpenCilk is not enabled in this build\n");
+        return EXIT_FAILURE;
+    #endif
+}
+
+
 int a2a_annsearch(const DTYPE* C, const int N, const int L, const int K, 
     int Kc, int* IDX, DTYPE* D, const int nthreads,
     const double max_memory_usage_ratio, parallelization_type_t par_type) {
@@ -454,6 +570,7 @@ int a2a_annsearch(const DTYPE* C, const int N, const int L, const int K,
     // Distribute clusters among threads
     if (distribute_clusters_by_size(Kc, nthreads, cluster_index, tasks)) goto cleanup;
 
+    // Initialize tasks
     for (int i = 0; i < nthreads; ++i) {
         tasks[i].cluster_index = cluster_index;
         tasks[i].L = L;
@@ -463,21 +580,21 @@ int a2a_annsearch(const DTYPE* C, const int N, const int L, const int K,
         tasks[i].IDX = IDX;
         tasks[i].N = N;
         tasks[i].max_memory_usage_ratio = max_memory_usage_ratio;
-        
-        if (pthread_create(&threads[i], NULL, annTaskExec, (void *)&tasks[i])) {
-            fprintf(stderr, "Error creating thread %d\n", i);
-            for (int j = 0; j < i; ++j) {
-                pthread_join(threads[j], NULL);
-            }
-            goto cleanup;
-        }
     }
 
-    for (int i = 0; i < nthreads; ++i) {
-        if (pthread_join(threads[i], NULL)) {
-            fprintf(stderr, "Error joining thread %d\n", i);
+    switch(par_type) {
+        case PAR_PTHREADS:
+            if (pthreads_parallelization(tasks, nthreads)) goto cleanup;
+            break;
+        case PAR_OPENMP:
+            if (openmp_parallelization(tasks, nthreads)) goto cleanup;
+            break;
+        case PAR_OPENCILK:
+            if (opencilk_parallelization(tasks, nthreads)) goto cleanup;
+            break;
+        default:
+            fprintf(stderr, "Unknown parallelization type\n");
             goto cleanup;
-        }
     }
 
     status = EXIT_SUCCESS;

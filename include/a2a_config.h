@@ -29,4 +29,11 @@
     #define DEBUG_ASSERT(cond, msg) ((void)0)
 #endif
 
+#ifdef USE_OPENCILK
+    #include <cilk/cilk.h>
+    #include <cilk/cilk_api.h>
+#else
+    #include <omp.h>
+#endif
+
 #endif

@@ -7,9 +7,9 @@
  * Parallelization types for ANN search.
  */
 typedef enum {
-    PARALLEL_PTHREADS,
-    PARALLEL_OPENMP,
-    PARALLEL_OPENCILK
+    PAR_PTHREADS,
+    PAR_OPENMP,
+    PAR_OPENCILK
 } parallelization_type_t;
 
 
