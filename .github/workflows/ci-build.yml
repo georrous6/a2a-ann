@@ -7,16 +7,36 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  build-openmp:
+    name: Build with OpenMP
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y cmake libopenblas-dev
-
-      - name: Configure and Build (Release)
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DPRECISION=SINGLE
+          sudo apt-get update
+          sudo apt-get install -y cmake gcc libopenblas-dev
+
+      - name: Configure and Build (OpenMP - Release)
+        run: |
+          CC=gcc cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DPRECISION=SINGLE
           cmake --build build
+
+  build-opencilk:
+    name: Build with OpenCilk
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (clang with OpenCilk)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake clang libopenblas-dev
+
+      - name: Configure and Build (OpenCilk - Release)
+        run: |
+          CC=clang cmake -S . -B build_cilk -DCMAKE_BUILD_TYPE=Release -DPRECISION=SINGLE -DUSE_OPENCILK=ON
+          cmake --build build_cilk

@@ -21,7 +21,7 @@ jobs:
 
       - name: Configure and Build (Debug)
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+          CC=gcc cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
           cmake --build build
 
       - name: Run Valgrind

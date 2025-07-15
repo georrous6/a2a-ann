@@ -12,7 +12,7 @@ endif()
 
 option(USE_OPENCILK "Enable OpenCilk parallelization" OFF)
 
-if(USE_OPENCILK)
+if(USE_OPENCILK AND CMAKE_BUILD_TYPE STREQUAL "Release")
     message(STATUS "Building with OpenCilk support")
     add_compile_options(-fopencilk)
     link_libraries(cilkrts)
@@ -42,6 +42,7 @@ find_package(OpenBLAS REQUIRED)
 file(GLOB_RECURSE SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 
 string(TOUPPER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_UPPERCASE)
+add_compile_definitions(${BUILD_TYPE_UPPERCASE}_CONFIG)
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 
@@ -52,8 +53,7 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     add_library(anns_debug STATIC ${SRC_FILES})
     target_compile_definitions(anns_debug 
         PRIVATE 
-            SINGLE_PRECISION 
-            ${BUILD_TYPE_UPPERCASE}_CONFIG
+            SINGLE_PRECISION
     )
     target_include_directories(anns_debug
         PUBLIC
@@ -69,8 +69,7 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     add_library(annd_debug STATIC ${SRC_FILES})
     target_compile_definitions(annd_debug 
         PRIVATE 
-        DOUBLE_PRECISION 
-        ${BUILD_TYPE_UPPERCASE}_CONFIG
+            DOUBLE_PRECISION
     )
     target_include_directories(annd_debug
         PUBLIC
@@ -95,8 +94,7 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     )
     target_compile_definitions(tests 
         PRIVATE 
-        DOUBLE_PRECISION 
-        ${BUILD_TYPE_UPPERCASE}_CONFIG
+            DOUBLE_PRECISION
     )
     target_include_directories(tests
         PRIVATE
@@ -123,8 +121,7 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     )
     target_compile_definitions(knn_benchmarks 
         PRIVATE 
-            SINGLE_PRECISION 
-            ${BUILD_TYPE_UPPERCASE}_CONFIG
+            SINGLE_PRECISION
     )
     target_include_directories(knn_benchmarks
         PRIVATE
@@ -151,8 +148,7 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     )
     target_compile_definitions(ann_benchmarks 
         PRIVATE 
-            SINGLE_PRECISION 
-            ${BUILD_TYPE_UPPERCASE}_CONFIG
+            SINGLE_PRECISION
     )
     target_include_directories(ann_benchmarks
         PRIVATE
@@ -177,8 +173,7 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     )
     target_compile_definitions(knn_example 
         PRIVATE 
-            SINGLE_PRECISION 
-            ${BUILD_TYPE_UPPERCASE}_CONFIG
+            SINGLE_PRECISION
     )
     target_include_directories(knn_example
         PRIVATE
@@ -202,8 +197,7 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     )
     target_compile_definitions(ann_example
         PRIVATE 
-            SINGLE_PRECISION 
-            ${BUILD_TYPE_UPPERCASE}_CONFIG
+            SINGLE_PRECISION
     )
     target_include_directories(ann_example
         PRIVATE
@@ -219,18 +213,17 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 
 else()  # Release build type
     
-    add_library(ann STATIC ${SRC_FILES})
-    target_compile_definitions(ann 
+    add_library(a2ann STATIC ${SRC_FILES})
+    target_compile_definitions(a2ann 
         PRIVATE 
-            ${PRECISION}_PRECISION 
-            ${BUILD_TYPE_UPPERCASE}_CONFIG
+            ${PRECISION}_PRECISION
     )
-    target_include_directories(ann
+    target_include_directories(a2ann
         PUBLIC
             ${OpenBLAS_INCLUDE_DIRS}
             "${PROJECT_SOURCE_DIR}/include"
     )
-    target_link_libraries(ann
+    target_link_libraries(a2ann
         PUBLIC
             ${OpenBLAS_LIBRARIES}
     )

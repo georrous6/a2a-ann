@@ -1,4 +1,4 @@
-# all2all-ann
+# a2a-ann
 
 ![Build Status](https://github.com/georrous6/all2all-ann/actions/workflows/ci-build.yml/badge.svg)
 ![Test Status](https://github.com/georrous6/all2all-ann/actions/workflows/ci-test.yml/badge.svg)
@@ -13,25 +13,29 @@
 The library is optimized for multicore systems using:
 - **POSIX Threads (pthreads)**
 - **OpenBLAS**
-- Optional: **Python 3** and **HDF5** for testing and benchmarking utilities
+- **OpenMP** (default secondary parallelization method)
+- **OpenCilk** (alternative secondary parallelization method)
 
 ---
 
 ## Requirements
 
+- **C standard** >= **C11**
 - **CMake** >= 3.10
 - **OpenBLAS**
-- **Python 3** (required for `Debug` configuration -- used in tests and benchmarks)
-- **HDF5** (required for `Debug` configuration)
+- **OpenMP** (enabled by default unless OpenCilk is used)
+- **OpenCilk** (can be enabled via a CMake option)
+- Optional: **HDF5** (required for running tests and benchmarks in `Debug` configuration)
+- Optional: **Python 3** (required for running tests and benchmarks in `Debug` configuration)
 
 ---
 
 ## Project Structure
 
-- **`.github/`**
+- **`.github/`**  
   Contains GitHub Actions workflows for continuous integration and deployment (CI/CD).
 
-- **`.vscode/`**
+- **`.vscode/`**  
   Configuration files to facilitate quick and consistent setup in the VSCode development environment.
 
 - **`benchmarks/`**  
@@ -52,41 +56,63 @@ The library is optimized for multicore systems using:
 - **`utils/`**  
   Shared utility functions and helper code used across tests and benchmarks.
 
-- **`valgrind/`**
+- **`valgrind/`**   
   Scripts and configuration files for memory analysis using Valgrind.
 
+---
 
 ## Build Instructions
 
 This project supports two build configurations:
 
-| Build Type     | Description                           | Dependencies               |
-|----------------|---------------------------------------|----------------------------|
-| `Release`      | Build the standalone library only     | OpenBLAS                   |
-| `Debug`        | Build tests and benchmarks            | OpenBLAS + HDF5 + Python 3 |
+| Build Type | Description                       | Dependencies                 | `USE_OPENCILK` flag  | `PRECISION` flag  |
+|------------|-----------------------------------|------------------------------|----------------------|-------------------|
+| `Release`  | Build the standalone library only | OpenBLAS + (OpenMP/OpenCilk) | `ON`/`OFF` (default) | `SINGLE`/`DOUBLE` (default) |
+| `Debug`    | Build tests and benchmarks        | OpenBLAS + OpenMP + HDF5     | `OFF`                | Not used          |
 
-You can select the build mode using the `CMAKE_BUILD_TYPE` flag.
+- In `Release` mode, by default, the library uses **OpenMP** as a secondary parallelization method. You can optionally 
+enable **OpenCilk** by setting the `USE_OPENCILK` flag to `ON`. Only one secondary parallelization method can be used at 
+a time.
+
+- In `Release` mode, you can specify the precision of the library by setting the `PRECISION` flag to `SINGLE` or `DOUBLE`.
+The default configuration is `DOUBLE`.
+
+- You can select the build mode using the `CMAKE_BUILD_TYPE` flag.
 
 ---
 
 ### Building the Library (Release)
 
-You can specify the precision of the library by setting the `PRECISION` flag to `SINGLE` or `DOUBLE`.
-The default configuration is `DOUBLE`.
+**Build with OpenMP (default)** 
 
+By default, the library uses **OpenMP** for parallelization. Make sure to use a compiler that supports **OpenMP**, 
+such as GCC:
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DPRECISION=SINGLE
+CC=gcc cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DPRECISION=SINGLE
 cmake --build build
 ```
-This will compile the static library `libann.a` in `build/`.
+
+**Optional: Build with OpenCilk**
+
+To use **OpenCilk** instead of OpenMP, enable the `USE_OPENCILK` option. You must use a compiler with **OpenCilk** 
+support, such as a custom-built **clang** from the [OpenCilk project](https://opencilk.org/):
+
+```bash
+CC=/path/to/opencilk/bin/clang cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DPRECISION=SINGLE -DUSE_OPENCILK=ON
+cmake --build build
+```
+Theese will compile the static library `liba2ann.a` in `build/`.
 
 ### Building with Tests and Benchmarks (Debug)
 
+Make sure to use a compiler that supports **OpenMP**, such as GCC:
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+CC=gcc cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ```
-You have also to install the dependencies for the python scripts:
+> Note: In `Debug` configuration the `PRECISION` and `USE_OPENCILK` flags are not used.
+
+You also need to install the Python dependencies for the test and benchmark scripts:
 ```bash
 pip install -r requirements.txt
 ```
