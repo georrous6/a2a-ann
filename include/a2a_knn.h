@@ -29,6 +29,7 @@
  * @param cblas_nthreads Number of threads for BLAS operations (e.g., OpenBLAS GEMM).
  *                       Recommended to set this to 1 if nthreads is greater than 1.
  * @param max_memory_usage_ratio Fraction of available memory allowed for computation (value between 0 and 1].
+ * @param par_type Type of parallelization (PTHREADS, OpenMP or OpenCilk).
  *
  * @return 0 (EXIT_SUCCESS) if the computation was successful; 1 (EXIT_FAILURE) otherwise.
  *
