@@ -25,32 +25,27 @@ jobs:
           cmake --build build
 
   build-opencilk:
+    name: Build with OpenCilk
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Get latest OpenCilk Linux release URL
-        id: get_release
+      - name: Install dependencies
         run: |
-          release_info=$(curl -s https://api.github.com/repos/OpenCilk/opencilk-project/releases/latest)
-          url=$(echo "$release_info" | jq -r '.assets[] | select(.name | test("Linux.*\\.tar\\.gz$")) | .browser_download_url')
-          echo "tarball_url=$url" >> $GITHUB_OUTPUT
+          sudo apt-get update
+          sudo apt-get install -y cmake libopenblas-dev
 
-      - name: Download and extract OpenCilk
+      - name: Download and setup OpenCilk Clang
         run: |
-          wget -q ${{ steps.get_release.outputs.tarball_url }} -O opencilk.tar.gz
-          tar -xzf opencilk.tar.gz
+          wget https://github.com/OpenCilk/opencilk-project/releases/download/opencilk-17.0.1/OpenCilk-17.0.1-Linux.tar.gz
+          tar -xzf OpenCilk-17.0.1-Linux.tar.gz
+          echo "$(pwd)/OpenCilk-17.0.1-Linux/bin" >> $GITHUB_PATH
 
-      - name: Add OpenCilk to PATH
-        # Adjust folder name if needed, assuming extracted folder starts with 'OpenCilk-'
-        run: echo "$(pwd)/OpenCilk-*/bin" >> $GITHUB_PATH
-
-      - name: Verify OpenCilk clang version
-        run: clang --version
-
-      - name: Build with OpenCilk clang
+      - name: Configure and Build (OpenCilk - Release)
         run: |
-          mkdir build
-          CC=clang cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DPRECISION=SINGLE -DUSE_OPENCILK=ON
-          cmake --build build
+          which clang
+          clang --version
+          CC=clang cmake -S . -B build_cilk -DCMAKE_BUILD_TYPE=Release -DPRECISION=SINGLE -DUSE_OPENCILK=ON
+          cmake --build build_cilk
 
