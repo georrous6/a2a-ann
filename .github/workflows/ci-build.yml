@@ -31,12 +31,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies (clang with OpenCilk)
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake clang libopenblas-dev
+          sudo apt-get install -y cmake libopenblas-dev
+
+      - name: Download and setup OpenCilk Clang
+        run: |
+          wget https://github.com/OpenCilk/opencilk-project/releases/download/opencilk-17.0.1/OpenCilk-17.0.1-Linux.tar.gz
+          tar -xzf OpenCilk-17.0.1-Linux.tar.gz
+          echo "$(pwd)/OpenCilk-17.0.1-Linux/bin" >> $GITHUB_PATH
 
       - name: Configure and Build (OpenCilk - Release)
         run: |
+          which clang
+          clang --version
           CC=clang cmake -S . -B build_cilk -DCMAKE_BUILD_TYPE=Release -DPRECISION=SINGLE -DUSE_OPENCILK=ON
           cmake --build build_cilk
+
