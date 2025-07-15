@@ -1,8 +1,8 @@
 # a2a-ann
 
-![Build Status](https://github.com/georrous6/all2all-ann/actions/workflows/ci-build.yml/badge.svg)
-![Test Status](https://github.com/georrous6/all2all-ann/actions/workflows/ci-test.yml/badge.svg)
-![Valgrind Status](https://github.com/georrous6/all2all-ann/actions/workflows/ci-valgrind.yml/badge.svg)
+![Build Status](https://github.com/georrous6/a2a-ann/actions/workflows/ci-build.yml/badge.svg)
+![Test Status](https://github.com/georrous6/a2a-ann/actions/workflows/ci-test.yml/badge.svg)
+![Valgrind Status](https://github.com/georrous6/a2a-ann/actions/workflows/ci-valgrind.yml/badge.svg)
 
 
 **a2a-ann** is a high-performance C library for solving the **All-to-All Approximate Nearest Neighbors (A2A-ANN)** problem. It includes highly parallelized implementations of both:
@@ -15,6 +15,23 @@ The library is optimized for multicore systems using:
 - **OpenBLAS**
 - **OpenMP** (default secondary parallelization method)
 - **OpenCilk** (alternative secondary parallelization method)
+
+---
+
+## Table of Contents
+
+- [Requirements](#requirements)
+- [Project Structure](#project-structure)
+- [Build Instructions](#build-instructions)
+  - [Building the Library (Release)](#building-the-library-release)
+  - [Building with Tests and Benchmarks (Debug)](#building-with-tests-and-benchmarks-debug)
+- [Running Tests](#running-tests)
+- [Running Benchmarks](#running-benchmarks)
+  - [KNN Benchmarks](#knn-benchmarks)
+  - [ANN Benchmarks](#ann-benchmarks)
+- [Valgrind](#valgrind)
+  - [Install Valgrind](#install-valgrind)
+  - [Running Valgrind](#running-valgrind)
 
 ---
 
