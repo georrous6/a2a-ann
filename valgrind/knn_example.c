@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
 
     gettimeofday(&tstart, NULL);
     if (a2a_knnsearch(test, train, my_neighbors, my_distances, M, N, L, K, 1, 
-        NUM_THREADS, 1, MAX_MEMORY_USAGE_RATIO)) goto cleanup;
+        NUM_THREADS, 1, MAX_MEMORY_USAGE_RATIO, PAR_PTHREADS)) goto cleanup;
     gettimeofday(&tend, NULL);
     long execution_time_usec = (tend.tv_sec - tstart.tv_sec) * 1000000L + (tend.tv_usec - tstart.tv_usec);
     execution_time = (float)execution_time_usec / 1e6f;

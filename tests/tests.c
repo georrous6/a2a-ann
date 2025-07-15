@@ -18,7 +18,7 @@ void setColor(const char *colorCode)
 #define BOLD_BLUE      "\033[1;34m"
 
 #define TOLERANCE 1e-6
-#define MAX_MEMORY_USAGE_RATIO 0.1
+#define MAX_MEMORY_USAGE_RATIO 0.01
 
 
 int test_case(const char *filename, double tolerance)
@@ -63,7 +63,7 @@ int test_case(const char *filename, double tolerance)
     my_neighbors = (int *)malloc(M * K * sizeof(int)); if (!my_neighbors) goto cleanup;
 
     if (a2a_knnsearch(test, train, my_neighbors, my_distances, M, N, L, K, 1, -1, 1, 
-        MAX_MEMORY_USAGE_RATIO)) goto cleanup;
+        MAX_MEMORY_USAGE_RATIO, PAR_PTHREADS)) goto cleanup;
 
     // test the output with the estimated one
     double x, y;

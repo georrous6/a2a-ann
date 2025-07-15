@@ -59,7 +59,7 @@ int knn_benchmark(const char *filename, int *nthreads, int *cblas_nthreads, cons
         
         gettimeofday(&tstart, NULL);
         if (a2a_knnsearch(test, train, my_neighbors, my_distances, M, N, L, K, 0, nthreads[t], 
-            cblas_nthreads[t], MAX_MEMORY_USAGE_RATIO)) goto cleanup;
+            cblas_nthreads[t], MAX_MEMORY_USAGE_RATIO, PAR_PTHREADS)) goto cleanup;
         gettimeofday(&tend, NULL);
         long execution_time_usec = (tend.tv_sec - tstart.tv_sec) * 1000000L + (tend.tv_usec - tstart.tv_usec);
         execution_time[t] = execution_time_usec / 1e6f;  // Convert to seconds

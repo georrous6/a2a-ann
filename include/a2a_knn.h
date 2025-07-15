@@ -42,6 +42,6 @@
  */
 int a2a_knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, 
     const int N, const int L, const int K, const int sorted, const int nthreads,
-    const int cblas_nthreads, const double max_memory_usage_ratio);
+    const int cblas_nthreads, const double max_memory_usage_ratio, parallelization_type_t par_type);
 
 #endif // KNNSEARCH_H

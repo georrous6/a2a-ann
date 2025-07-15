@@ -24,12 +24,12 @@ typedef struct knnTask {
     int *IDX_all_block;
     const DTYPE *sqrmag_C;
     const DTYPE *sqrmag_Q_block;
-    const int K;
-    const int N;
-    const int L;
-    const int QUERIES_NUM_THREAD;     // Number of queries for the task to proccess
-    const int q_index;                // Index of the first query to be proccessed
-    const int q_index_thread;         // Index of the query to be proccesed inside a thread
+    int K;
+    int N;
+    int L;
+    int QUERIES_NUM_THREAD;     // Number of queries for the task to proccess
+    int q_index;                // Index of the first query to be proccessed
+    int q_index_thread;         // Index of the query to be proccesed inside a thread
 } knnTask;
 
 
@@ -268,20 +268,190 @@ static int check_input_args_knn(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE*
 }
 
 
+static int initialize_tasks(knnTask** tasks, int *num_tasks, const int NTHREADS, 
+    const int QUERIES_NUM_BLOCK, const DTYPE* C, const DTYPE* Q, DTYPE* D_all_block, 
+    int* IDX_all_block, const DTYPE* sqrmag_C, const DTYPE* sqrmag_Q_block, const int N, 
+    const int L, const int K, int q_index) {
+
+    *tasks = NULL;
+    *num_tasks = 0;
+
+    // Create the tasks and add them to the queue
+    if (QUERIES_NUM_BLOCK < NTHREADS || NTHREADS == 1) { // create only one task
+        *tasks = (knnTask *)malloc(sizeof(knnTask));
+        *num_tasks = 1;
+        if (!(*tasks)) {
+            fprintf(stderr, "Error allocating memory for knnTask\n");
+            return EXIT_FAILURE;
+        }
+        (*tasks)->C = C; 
+        (*tasks)->Q = Q; 
+        (*tasks)->D_all_block = D_all_block;
+        (*tasks)->IDX_all_block = IDX_all_block;
+        (*tasks)->QUERIES_NUM_THREAD = QUERIES_NUM_BLOCK;
+        (*tasks)->sqrmag_C = sqrmag_C;
+        (*tasks)->sqrmag_Q_block = sqrmag_Q_block;
+        (*tasks)->N = N;
+        (*tasks)->L = L;
+        (*tasks)->K = K;
+        (*tasks)->q_index = q_index;
+        (*tasks)->q_index_thread = 0;
+    }
+    else { // split workload accross all the threads
+        *num_tasks = NTHREADS;
+        int remainder = QUERIES_NUM_BLOCK % NTHREADS;
+        int QUERIES_NUM_THREAD = 0;  // number of queries being proccesed on each thread
+        int q_index_thread = 0;  // indexing of the queries in each block of queries
+
+        *tasks = (knnTask *)malloc(sizeof(knnTask) * NTHREADS);
+        if (!(*tasks)) {
+            fprintf(stderr, "Error allocating memory for knnTask array\n");
+            return EXIT_FAILURE;
+        }
+
+        for (int t = 0; t < NTHREADS; t++) {
+            QUERIES_NUM_THREAD = QUERIES_NUM_BLOCK / NTHREADS;
+            if (remainder > 0) {
+                remainder--;
+                QUERIES_NUM_THREAD++;
+            }
+
+            (*tasks)[t].C = C; 
+            (*tasks)[t].Q = Q; 
+            (*tasks)[t].D_all_block = D_all_block;
+            (*tasks)[t].IDX_all_block = IDX_all_block;
+            (*tasks)[t].QUERIES_NUM_THREAD = QUERIES_NUM_THREAD;
+            (*tasks)[t].sqrmag_C = sqrmag_C;
+            (*tasks)[t].sqrmag_Q_block = sqrmag_Q_block;
+            (*tasks)[t].N = N;
+            (*tasks)[t].L = L;
+            (*tasks)[t].K = K;
+            (*tasks)[t].q_index = q_index + q_index_thread;
+            (*tasks)[t].q_index_thread = q_index_thread;
+
+            q_index_thread += QUERIES_NUM_THREAD;
+        }
+    }
+
+    return EXIT_SUCCESS;
+}
+
+
+static void execute_tasks_pthreads(const knnTask* tasks, const int num_tasks, a2a_Queue* tasksQueue) {
+    // Add tasks to the queue
+    for (int i = 0; i < num_tasks; i++) {
+        a2a_QueueEnqueue(tasksQueue, (void *)&tasks[i]);
+        runningTasks++;
+    }
+
+    pthread_cond_broadcast(&condQueue);  // Wake up all threads to assign them the tasks
+        
+    // Wait for all tasks in the current block to finish
+    pthread_mutex_lock(&mutexQueue);
+    //DEBUG_PRINT("KNN: Waiting for %d tasks to complete...\n", runningTasks);
+    while (runningTasks > 0) {
+        pthread_cond_wait(&condTasksComplete, &mutexQueue);
+    }
+    pthread_mutex_unlock(&mutexQueue);
+}
+
+
+static void execute_tasks_openmp(const knnTask* tasks, const int num_tasks) {
+    #ifndef USE_OPENCILK
+        #pragma omp parallel for num_threads(num_tasks)
+        for (int i = 0; i < num_tasks; i++) {
+            knnTaskExec(&tasks[i]);
+        }
+    #else
+        fprintf(stderr, "OpenMP is not enabled in this build\n");
+    #endif
+}
+
+
+static void execute_tasks_opencilk(const knnTask* tasks, const int num_tasks) {
+    #ifdef USE_OPENCILK
+        cilk_for (int i = 0; i < num_tasks; ++i) {
+            knnTaskExec(&tasks[i]);
+        }
+    #else
+        fprintf(stderr, "OpenCilk is not enabled in this build\n");
+    #endif
+}
+
+
+static int create_thread_pool(pthread_t **threads, pthread_attr_t* attr, 
+    a2a_Queue *tasksQueue, const int NTHREADS) {
+
+    a2a_QueueInit(tasksQueue, sizeof(knnTask));
+    pthread_attr_init(attr);
+    pthread_attr_setdetachstate(attr, PTHREAD_CREATE_JOINABLE);
+    pthread_mutex_init(&mutexQueue, NULL);
+    pthread_cond_init(&condQueue, NULL);
+    pthread_cond_init(&condTasksComplete, NULL);
+
+    *threads = (pthread_t *)malloc(sizeof(pthread_t) * NTHREADS);
+    if (!(*threads)) {
+        fprintf(stderr, "Error allocating memory for threads\n");
+        return EXIT_FAILURE;
+    }
+
+    for (int t = 0; t < NTHREADS; t++) {
+        if (pthread_create(&(* threads)[t], NULL, knnThreadStart, (void *)tasksQueue)) {
+            fprintf(stderr, "Error creating thread %d\n", t + 1);
+            return EXIT_FAILURE;
+        }
+    } 
+    
+    return EXIT_SUCCESS;
+}
+
+
+static int destroy_thread_pool(pthread_t *threads, const int NTHREADS, 
+    a2a_Queue *tasksQueue, pthread_attr_t *attr) {
+
+    if (!threads) {
+        fprintf(stderr, "Error: No threads to destroy\n");
+        return EXIT_FAILURE;
+    }
+
+    isActive = 0;  // Signal threads to exit
+    pthread_cond_broadcast(&condQueue);  // Wake up all threads to exit
+
+    for (int t = 0; t < NTHREADS; t++) {
+        if (pthread_join(threads[t], NULL)) {
+            fprintf(stderr, "Error joining thread %d\n", t + 1);
+            return EXIT_FAILURE;
+        }
+    }
+
+    pthread_attr_destroy(attr);
+    pthread_mutex_destroy(&mutexQueue);
+    pthread_cond_destroy(&condQueue);
+    pthread_cond_destroy(&condTasksComplete);
+    a2a_QueueDestroy(tasksQueue);
+    free(threads);
+
+    return EXIT_SUCCESS;
+}
+
+
 int a2a_knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int M, 
     const int N, const int L, const int K, const int sorted, const int nthreads,
-    const int cblas_nthreads, const double max_memory_usage_ratio) {
+    const int cblas_nthreads, const double max_memory_usage_ratio, 
+    parallelization_type_t par_type) {
 
     if (check_input_args_knn(Q, C, IDX, D, M, N, L, K, cblas_nthreads, max_memory_usage_ratio)) {
         return EXIT_FAILURE;
-    
     }
     isActive = 1;
     runningTasks = 0;
     DTYPE *D_all_block = NULL, *sqrmag_Q_block = NULL, *sqrmag_C = NULL;
     int *IDX_all_block = NULL;
-    int MAX_QUERIES_MEMORY;  // The maximum number of queries that can be stored in memory
+    pthread_t* threads = NULL;
+    int MAX_QUERIES_MEMORY;    // The maximum number of queries that can be stored in memory
     int status = EXIT_FAILURE;
+    pthread_attr_t attr;
+    a2a_Queue tasksQueue;
 
     // Allocate the appropriate amount of memory for the matrices and compute the
     // maximum number of queries that can be proccessed
@@ -291,33 +461,13 @@ int a2a_knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int 
     }
 
     const int NTHREADS = get_num_threads(nthreads, MAX_QUERIES_MEMORY, cblas_nthreads);
-
     DEBUG_PRINT("KNN: Running on %d threads (OpenBLAS threads: %d)\n", NTHREADS, openblas_get_num_threads());
 
-    pthread_t* threads = NULL;
-    pthread_attr_t attr;
-    a2a_Queue tasksQueue;
-
     // Create the threads if multithreading is desired
-    if (NTHREADS > 1) {
-        a2a_QueueInit(&tasksQueue, sizeof(knnTask));
-        pthread_attr_init(&attr);
-        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-        pthread_mutex_init(&mutexQueue, NULL);
-        pthread_cond_init(&condQueue, NULL);
-        pthread_cond_init(&condTasksComplete, NULL);
-
-        threads = (pthread_t *)malloc(sizeof(pthread_t) * NTHREADS);
-        if (!threads) {
-            fprintf(stderr, "Error allocating memory for threads\n");
+    if (NTHREADS > 1 && par_type == PAR_PTHREADS) {
+        if (create_thread_pool(&threads, &attr, &tasksQueue, NTHREADS)) {
+            fprintf(stderr, "Error creating thread pool\n");
             goto cleanup;
-        }
-
-        for (int t = 0; t < NTHREADS; t++) {
-            if (pthread_create(&threads[t], NULL, knnThreadStart, (void *)&tasksQueue)) {
-                fprintf(stderr, "Error creating thread %d\n", t + 1);
-                goto cleanup;
-            }
         }
     }
 
@@ -327,10 +477,12 @@ int a2a_knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int 
         sqrmag_C[i] = DOT(L, C + i * L, 1, C + i * L, 1);
     }
 
-
     // Iterate through each block of queries
     int q_index = 0;
     while (q_index < M) {
+
+        knnTask* tasks = NULL;
+        
         // number of queries per block
         const int QUERIES_NUM_BLOCK = (M - q_index) > MAX_QUERIES_MEMORY ? MAX_QUERIES_MEMORY : (M - q_index);
 
@@ -347,83 +499,32 @@ int a2a_knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int 
         }
         
         DEBUG_PRINT("KNN: Processing block with %d queries (using %.2lf%% of available memory)\n", QUERIES_NUM_BLOCK, max_memory_usage_ratio * 100.0);
-        if (NTHREADS == 1) { // no multithreading
-            knnTask task = {
-                .C = C, 
-                .Q = Q, 
-                .D_all_block = D_all_block,
-                .IDX_all_block = IDX_all_block,
-                .QUERIES_NUM_THREAD = QUERIES_NUM_BLOCK,
-                .sqrmag_C = sqrmag_C,
-                .sqrmag_Q_block = sqrmag_Q_block,
-                .N = N,
-                .L = L,
-                .K = K,
-                .q_index = q_index,
-                .q_index_thread = 0
-            };
-            knnTaskExec(&task);
-        }
-        else { // multithreading
-            // Create the tasks and add them to the queue
-            if (QUERIES_NUM_BLOCK / NTHREADS == 0) { // create only one task
-                knnTask task = {
-                    .C = C, 
-                    .Q = Q, 
-                    .D_all_block = D_all_block,
-                    .IDX_all_block = IDX_all_block,
-                    .QUERIES_NUM_THREAD = QUERIES_NUM_BLOCK,
-                    .sqrmag_C = sqrmag_C,
-                    .sqrmag_Q_block = sqrmag_Q_block,
-                    .N = N,
-                    .L = L,
-                    .K = K,
-                    .q_index = q_index,
-                    .q_index_thread = 0
-                };
-                a2a_QueueEnqueue(&tasksQueue, (void *)&task);  // add task to the queue
-                runningTasks++;
-            }
-            else { // split workload accross all the threads
-                int remainder = QUERIES_NUM_BLOCK % NTHREADS;
-                int QUERIES_NUM_THREAD = 0;  // number of queries being proccesed on each thread
-                int q_index_thread = 0;  // indexing of the queries in each block of queries
-                for (int t = 0; t < NTHREADS; t++) {
-                    QUERIES_NUM_THREAD = QUERIES_NUM_BLOCK / NTHREADS;
-                    if (remainder > 0) {
-                        remainder--;
-                        QUERIES_NUM_THREAD++;
-                    }
 
-                    knnTask task = {
-                        .C = C, 
-                        .Q = Q, 
-                        .D_all_block = D_all_block,
-                        .IDX_all_block = IDX_all_block,
-                        .QUERIES_NUM_THREAD = QUERIES_NUM_THREAD,
-                        .sqrmag_C = sqrmag_C,
-                        .sqrmag_Q_block = sqrmag_Q_block,
-                        .N = N,
-                        .L = L,
-                        .K = K,
-                        .q_index = q_index_thread + q_index,
-                        .q_index_thread = q_index_thread
-                    };
-                    a2a_QueueEnqueue(&tasksQueue, (void *)&task);  // add task to the queue
-                    runningTasks++;
-                    q_index_thread += QUERIES_NUM_THREAD;
-                }
-            }
+        // Initialize the tasks for the current block of queries
+        int num_tasks = 0;
+        if (initialize_tasks(&tasks, &num_tasks, NTHREADS, QUERIES_NUM_BLOCK, C, Q, D_all_block, 
+            IDX_all_block, sqrmag_C, sqrmag_Q_block, N, L, K, q_index)) goto cleanup;
 
-            pthread_cond_broadcast(&condQueue);  // Wake up all threads to assign them the tasks
-                
-            // Wait for all tasks in the current block to finish
-            pthread_mutex_lock(&mutexQueue);
-            //DEBUG_PRINT("KNN: Waiting for %d tasks to complete...\n", runningTasks);
-            while (runningTasks > 0) {
-                pthread_cond_wait(&condTasksComplete, &mutexQueue);
+
+        // Execute the tasks
+        if (NTHREADS == 1) {
+            knnTaskExec(&tasks[0]);  // Execute the single task directly
+        } else {
+            switch (par_type) {
+                case PAR_PTHREADS:
+                execute_tasks_pthreads(tasks, num_tasks, &tasksQueue);
+                break;
+                case PAR_OPENMP:
+                execute_tasks_openmp(tasks, num_tasks);
+                break;
+                case PAR_OPENCILK:
+                execute_tasks_opencilk(tasks, num_tasks);
+                break;
+                default:
+                fprintf(stderr, "Unknown parallelization type\n");
+                free(tasks);
+                goto cleanup;
             }
-            pthread_mutex_unlock(&mutexQueue);
         }
 
         // now copy the first K elements of each row of matrices
@@ -441,30 +542,16 @@ int a2a_knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int 
         }
 
         q_index += QUERIES_NUM_BLOCK;  // move to the next block of queries
-    }
-
-    if (NTHREADS > 1) {
-        isActive = 0;  // Set termination flag for threads
-        pthread_cond_broadcast(&condQueue);  // Wake up all threads to allow them to exit
-
-        for (int t = 0; t < NTHREADS; t++) {
-            if (pthread_join(threads[t], NULL)) {
-                fprintf(stderr, "Failed to join thread %d\n", t);
-                goto cleanup;
-            }
-        }
+        free(tasks);  // Free the tasks array after processing the block
     }
 
     status = EXIT_SUCCESS;
 
 cleanup:
-    if (NTHREADS > 1) {
-        a2a_QueueDestroy(&tasksQueue);
-        pthread_attr_destroy(&attr);
-        pthread_mutex_destroy(&mutexQueue);
-        pthread_cond_destroy(&condQueue);
-        pthread_cond_destroy(&condTasksComplete);
-        if (threads) free(threads);
+    if (NTHREADS > 1 && par_type == PAR_PTHREADS) {
+        if (destroy_thread_pool(threads, NTHREADS, &tasksQueue, &attr)) {
+            status = EXIT_FAILURE;
+        }
     }
     free(sqrmag_C);
     free(sqrmag_Q_block);

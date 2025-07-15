@@ -5,6 +5,15 @@
 #include <cblas.h>
 #include <math.h>
 
+/**
+ * Parallelization types
+ */
+typedef enum {
+    PAR_PTHREADS,
+    PAR_OPENMP,
+    PAR_OPENCILK
+} parallelization_type_t;
+
 #ifdef SINGLE_PRECISION
     #define DTYPE float
     #define GEMM cblas_sgemm

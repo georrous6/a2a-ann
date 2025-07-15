@@ -3,15 +3,6 @@
 
 #include "a2a_config.h"
 
-/**
- * Parallelization types for ANN search.
- */
-typedef enum {
-    PAR_PTHREADS,
-    PAR_OPENMP,
-    PAR_OPENCILK
-} parallelization_type_t;
-
 
 /**
  * Performs an Approximate Nearest Neighbor (ANN) search on a dataset using
@@ -31,7 +22,7 @@ typedef enum {
  * @param D                       Output array (size N * K) to store distances to nearest neighbors.
  * @param nthreads                Number of threads to use for parallel computation.
  * @param max_memory_usage_ratio  Maximum allowed memory usage ratio (between 0 and 1).
- * @param par_type                Type of parallelization (not used in the current implementation).
+ * @param par_type                Type of parallelization (PTHREADS, OpenMP or OpenCilk).
  * 
  * @return                        EXIT_SUCCESS (0) on success, or EXIT_FAILURE (non-zero) on error.
  */

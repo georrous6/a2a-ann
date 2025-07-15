@@ -62,7 +62,8 @@ static int build_cluster_index(const int* assignments, const int* counts, const 
 
 
 static int kmeans(const DTYPE* data, const int N, const int L, const int K, int *Kc, 
-    int **assignments, int **counts, const int nthreads, const double max_memory_usage_ratio) {
+    int **assignments, int **counts, const int nthreads, const double max_memory_usage_ratio,
+    const parallelization_type_t par_type) {
 
     *assignments = NULL;
     *counts = NULL;
@@ -113,7 +114,7 @@ static int kmeans(const DTYPE* data, const int N, const int L, const int K, int 
 
     // Assign each query to the nearest centroid
     if (a2a_knnsearch(queries, centroids, IDX, D, N - (*Kc), *Kc, L, 1, 0, 
-    nthreads, 1, max_memory_usage_ratio)) goto cleanup;
+    nthreads, 1, max_memory_usage_ratio, par_type)) goto cleanup;
 
     // Map the indices back to the original data points
     for (int i = 0; i < N - (*Kc); i++) {
@@ -306,7 +307,8 @@ static void *annTaskExec(void *arg) {
 
         // Find K nearest neighbors in the submatrix
         const double memory_usage_ratio = max_memory_usage_ratio * (double)total_thread_points / (double)N;
-        if (a2a_knnsearch(C_sub, C_sub, idx_sub, dist_sub, cluster_size, cluster_size, L, K + 1, 0, 1, 1, memory_usage_ratio)) {
+        if (a2a_knnsearch(C_sub, C_sub, idx_sub, dist_sub, cluster_size, cluster_size, 
+            L, K + 1, 0, 1, 1, memory_usage_ratio, PAR_PTHREADS)) {
             free(C_sub);
             free(idx_sub);
             free(dist_sub);
@@ -547,14 +549,14 @@ int a2a_annsearch(const DTYPE* C, const int N, const int L, const int K,
 
     if (Kc == 1) {
         // Fall back to exact solution
-        if (a2a_knnsearch(C, C, IDX, D, N, N, L, K, 0, nthreads, 1, max_memory_usage_ratio)) {
+        if (a2a_knnsearch(C, C, IDX, D, N, N, L, K, 0, nthreads, 1, max_memory_usage_ratio, par_type)) {
             return EXIT_FAILURE;
         }
         return EXIT_SUCCESS;
     }
 
     // Step 1: k-means clustering
-    if (kmeans(C, N, L, K, &Kc, &assignments, &counts, nthreads, max_memory_usage_ratio)) goto cleanup;
+    if (kmeans(C, N, L, K, &Kc, &assignments, &counts, nthreads, max_memory_usage_ratio, par_type)) goto cleanup;
 
     // Step 2: build cluster point index
     cluster_index = (ClusterIndex *)malloc(sizeof(ClusterIndex) * Kc);

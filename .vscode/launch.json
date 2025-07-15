@@ -41,7 +41,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/knn_example",
-            "args": ["${workspaceFolder}/valgrind/data.hdf5"],
+            "args": ["${workspaceFolder}/benchmarks/data/fashion-mnist-784-euclidean.hdf5"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",
             "MIMode": "gdb",
