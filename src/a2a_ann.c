@@ -455,6 +455,7 @@ static int pthreads_parallelization(annTask* tasks, int nthreads) {
             free(retval);
             goto cleanup;
         }
+        free(retval);
     }
 
     status = EXIT_SUCCESS;
