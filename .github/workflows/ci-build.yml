@@ -38,9 +38,9 @@ jobs:
 
       - name: Download and setup OpenCilk Clang
         run: |
-          wget https://github.com/OpenCilk/opencilk-project/releases/download/opencilk-17.0.1/OpenCilk-17.0.1-Linux.tar.gz
-          tar -xzf OpenCilk-17.0.1-Linux.tar.gz
-          echo "$(pwd)/OpenCilk-17.0.1-Linux/bin" >> $GITHUB_PATH
+          wget https://github.com/OpenCilk/opencilk-project/releases/download/opencilk/v2.1/opencilk-2.1.0-x86_64-linux-gnu-ubuntu-22.04.tar.gz
+          tar -xzf opencilk-2.1.0-x86_64-linux-gnu-ubuntu-22.04.tar.gz
+          echo "$(pwd)/opencilk-2.1.0-x86_64-linux-gnu-ubuntu-22.04/bin" >> $GITHUB_PATH
 
       - name: Configure and Build (OpenCilk - Release)
         run: |
