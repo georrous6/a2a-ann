@@ -356,25 +356,29 @@ static void execute_tasks_pthreads(const knnTask* tasks, const int num_tasks, a2
 }
 
 
-static void execute_tasks_openmp(const knnTask* tasks, const int num_tasks) {
+static int execute_tasks_openmp(const knnTask* tasks, const int num_tasks) {
     #ifndef USE_OPENCILK
         #pragma omp parallel for num_threads(num_tasks)
         for (int i = 0; i < num_tasks; i++) {
             knnTaskExec(&tasks[i]);
         }
+        return EXIT_SUCCESS;
     #else
         fprintf(stderr, "OpenMP is not enabled in this build\n");
+        return EXIT_FAILURE;
     #endif
 }
 
 
-static void execute_tasks_opencilk(const knnTask* tasks, const int num_tasks) {
+static int execute_tasks_opencilk(const knnTask* tasks, const int num_tasks) {
     #ifdef USE_OPENCILK
         cilk_for (int i = 0; i < num_tasks; ++i) {
             knnTaskExec(&tasks[i]);
         }
+        return EXIT_SUCCESS;
     #else
         fprintf(stderr, "OpenCilk is not enabled in this build\n");
+        return EXIT_FAILURE;
     #endif
 }
 
@@ -515,10 +519,16 @@ int a2a_knnsearch(const DTYPE* Q, const DTYPE* C, int* IDX, DTYPE* D, const int 
                 execute_tasks_pthreads(tasks, num_tasks, &tasksQueue);
                 break;
                 case PAR_OPENMP:
-                execute_tasks_openmp(tasks, num_tasks);
+                if (execute_tasks_openmp(tasks, num_tasks)) {
+                    free(tasks);
+                    goto cleanup;
+                }
                 break;
                 case PAR_OPENCILK:
-                execute_tasks_opencilk(tasks, num_tasks);
+                if (execute_tasks_opencilk(tasks, num_tasks)) {
+                    free(tasks);
+                    goto cleanup;
+                }
                 break;
                 default:
                 fprintf(stderr, "Unknown parallelization type\n");

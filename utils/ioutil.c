@@ -139,6 +139,7 @@ int store_hdf5(const void* mat, const char* matname, int rows, int cols, const c
     } else if (mode == 'a') {
         file_id = H5Fopen(filename, H5F_ACC_RDWR, H5P_DEFAULT);
         if (file_id < 0) {
+            fprintf(stderr, "File '%s' does not exist in append mode. Creating it...\n", filename);
             file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
         }
     } else {
@@ -179,6 +180,11 @@ int store_hdf5(const void* mat, const char* matname, int rows, int cols, const c
             H5Sclose(dataspace_id);
             H5Fclose(file_id);
             return EXIT_FAILURE;
+    }
+
+    if (H5Lexists(file_id, matname, H5P_DEFAULT) > 0) {
+        fprintf(stderr, "Dataset '%s' already exists. Deleting it.\n", matname);
+        H5Ldelete(file_id, matname, H5P_DEFAULT);
     }
 
     hid_t dset_id = H5Dcreate(file_id, matname, dtype, dataspace_id, 

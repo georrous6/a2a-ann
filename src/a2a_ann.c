@@ -89,6 +89,8 @@ static int kmeans(const DTYPE* data, const int N, const int L, const int K, int 
         goto cleanup;
     }
 
+    srand(0);  // Seed for reproducibility
+
     // Initialize centroids by randomly selecting K points from data
     int centroid_idx = 0;
     memset(tmp_counts, 0, (*Kc) * sizeof(int));  // Set counts to zero
@@ -547,16 +549,8 @@ int a2a_annsearch(const DTYPE* C, const int N, const int L, const int K,
     pthread_t *threads = NULL;
     annTask* tasks = NULL;
 
-    if (Kc == 1) {
-        // Fall back to exact solution
-        if (a2a_knnsearch(C, C, IDX, D, N, N, L, K, 0, nthreads, 1, max_memory_usage_ratio, par_type)) {
-            return EXIT_FAILURE;
-        }
-        return EXIT_SUCCESS;
-    }
-
     // Step 1: k-means clustering
-    if (kmeans(C, N, L, K, &Kc, &assignments, &counts, nthreads, max_memory_usage_ratio, par_type)) goto cleanup;
+    if (kmeans(C, N, L, K + 1, &Kc, &assignments, &counts, nthreads, max_memory_usage_ratio, par_type)) goto cleanup;
 
     // Step 2: build cluster point index
     cluster_index = (ClusterIndex *)malloc(sizeof(ClusterIndex) * Kc);

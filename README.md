@@ -85,9 +85,9 @@ This project supports two build configurations:
 | Build Type | Description                       | Dependencies                 | `USE_OPENCILK` flag  | `PRECISION` flag  |
 |------------|-----------------------------------|------------------------------|----------------------|-------------------|
 | `Release`  | Build the standalone library only | OpenBLAS + (OpenMP/OpenCilk) | `ON`/`OFF` (default) | `SINGLE`/`DOUBLE` (default) |
-| `Debug`    | Build tests and benchmarks        | OpenBLAS + OpenMP + HDF5     | `OFF`                | Not used          |
+| `Debug`    | Build tests and benchmarks        | OpenBLAS + OpenMP + HDF5     | `ON`/`OFF` (default)               | Not used          |
 
-- In `Release` mode, by default, the library uses **OpenMP** as a secondary parallelization method. You can optionally 
+- By default, the library uses **OpenMP** as a secondary parallelization method. You can optionally 
 enable **OpenCilk** by setting the `USE_OPENCILK` flag to `ON`. Only one secondary parallelization method can be used at 
 a time.
 
@@ -127,7 +127,7 @@ Make sure to use a compiler that supports **OpenMP**, such as GCC:
 CC=gcc cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ```
-> Note: In `Debug` configuration the `PRECISION` and `USE_OPENCILK` flags are not used.
+> Note: In `Debug` configuration the `PRECISION` flag in not used.
 
 You also need to install the Python dependencies for the test and benchmark scripts:
 ```bash

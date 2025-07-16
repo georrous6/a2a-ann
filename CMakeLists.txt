@@ -12,10 +12,10 @@ endif()
 
 option(USE_OPENCILK "Enable OpenCilk parallelization" OFF)
 
-if(USE_OPENCILK AND CMAKE_BUILD_TYPE STREQUAL "Release")
+if(USE_OPENCILK)
     message(STATUS "Building with OpenCilk support")
     add_compile_options(-fopencilk)
-    link_libraries(cilkrts)
+    add_link_options(-fopencilk)
     add_compile_definitions(USE_OPENCILK)
 else()
     find_package(OpenMP REQUIRED)

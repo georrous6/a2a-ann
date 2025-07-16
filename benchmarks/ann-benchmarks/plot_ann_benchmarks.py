@@ -26,6 +26,22 @@ with h5py.File(file_path, 'r') as f:
     recall = f['recall'][:]
     num_clusters = f['num_clusters'][:].flatten()
 
+    # Detect optional recall_* and queries_per_sec_* datasets
+    suffixes = []
+    for key in f.keys():
+        if key.startswith('recall_'):
+            suffix = key[len('recall_'):]
+            if f'queries_per_sec_{suffix}' in f:
+                suffixes.append(suffix)
+
+    recall_throughput_data = {}
+    for suffix in suffixes:
+        recall_key = f'recall_{suffix}'
+        qps_key = f'queries_per_sec_{suffix}'
+        recall_data = f[recall_key][:].flatten()
+        qps_data = f[qps_key][:].flatten()
+        recall_throughput_data[suffix.upper()] = (recall_data, qps_data)
+
 # === Derived info ===
 num_thread_levels = len(nthreads)
 num_cluster_levels = len(num_clusters)
@@ -49,7 +65,7 @@ plt.xlabel('Number of Threads')
 plt.ylabel('Queries per Second')
 plt.title('ANN: Queries per Second vs Number of Threads')
 plt.legend(loc='upper right')
-plt.xticks(nthreads, [str(int(n)) for n in nthreads])  # Show exact thread counts as ticks
+plt.xticks(nthreads, [str(int(n)) for n in nthreads])  # Exact thread counts
 
 output_file1 = os.path.join(output_dir, 'ann_throughput_vs_threads.png')
 plt.savefig(output_file1)
@@ -58,10 +74,7 @@ plt.savefig(output_file1)
 plt.figure()
 colors = plt.cm.get_cmap('tab10', num_thread_levels)
 
-for t in range(num_thread_levels):
-    plt.plot(num_clusters, recall[t, :], '-s',
-             label=f'{nthreads[t]} threads',
-             color=colors(t), linewidth=2, markersize=6)
+plt.plot(num_clusters, recall[1, :], '-s', linewidth=2, markersize=6)
 
 plt.grid(True)
 plt.xlabel('Number of Clusters')
@@ -72,6 +85,25 @@ plt.legend(loc='upper right')
 output_file2 = os.path.join(output_dir, 'ann_recall_vs_clusters.png')
 plt.savefig(output_file2)
 
+# === Plot 3: Recall vs Throughput ===
+plt.figure()
+markers = ['o', 's', '^', 'v', 'D', 'P', '*', 'X', 'h', 'H']
+colors = plt.cm.get_cmap('tab10', len(recall_throughput_data))
+
+for idx, (label, (recall_vals, qps_vals)) in enumerate(recall_throughput_data.items()):
+    plt.plot(qps_vals, recall_vals, marker=markers[idx % len(markers)],
+             linestyle='-', label=label, color=colors(idx), linewidth=2, markersize=6)
+
+plt.grid(True)
+plt.xlabel('Queries per Second')
+plt.ylabel('Recall (%)')
+plt.title('ANN: Recall vs Throughput')
+plt.legend(loc='lower right')
+
+output_file3 = os.path.join(output_dir, 'ann_recall_vs_throughput.png')
+plt.savefig(output_file3)
+
 print("Saved ANN benchmark plots to:")
 print(f" - {output_file1}")
 print(f" - {output_file2}")
+print(f" - {output_file3}")

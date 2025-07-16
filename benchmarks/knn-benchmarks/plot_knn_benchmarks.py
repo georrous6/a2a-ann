@@ -16,41 +16,54 @@ if not os.path.exists(hdf5_file_path):
     sys.exit(1)
 
 with h5py.File(hdf5_file_path, 'r') as f:
-    required_vars = ['nthreads', 'queries_per_sec']
-    for var in required_vars:
-        if var not in f:
-            raise KeyError(f'Missing dataset "{var}" in "{hdf5_file_path}"')
-    
+    if 'nthreads' not in f:
+        raise KeyError(f'Missing dataset "nthreads" in "{hdf5_file_path}"')
     nthreads = f['nthreads'][:].flatten()
-    queries_per_sec = f['queries_per_sec'][:].flatten()
 
-# === Validate shape ===
-if nthreads.size != queries_per_sec.size:
-    raise ValueError("nthreads and queries_per_sec must be vectors of the same length.")
+    # Collect all queries_per_sec_* datasets
+    queries_data = {}
+    for key in f.keys():
+        if key.startswith('queries_per_sec'):
+            queries_data[key] = f[key][:].flatten()
+
+# === Validate data ===
+for key, values in queries_data.items():
+    if nthreads.size != values.size:
+        raise ValueError(f"Mismatch: 'nthreads' and '{key}' have different lengths.")
 
 # === Get number of CPU cores ===
 n_cores = os.cpu_count()
 
-# === Prepare data for plotting ===
-n = len(nthreads) - 1
-exponents = np.arange(0, n)
-
 # === Plot ===
-plt.figure()
-plt.plot([0, n - 1], [queries_per_sec[0]] * 2, '--r', linewidth=2, label=f'CBLAS threads: {n_cores}')
-plt.plot(exponents, queries_per_sec[1:], '-ob', linewidth=2, markersize=8, label='CBLAS threads: 1')
+plt.figure(figsize=(8, 6))
+
+markers = ['o', 's', '^', 'v', 'D', 'P', '*', 'X', '<', '>']
+
+for idx, (key, values) in enumerate(queries_data.items()):
+    label = key.replace('queries_per_sec_', '').upper()
+    marker = markers[idx % len(markers)]
+    color = plt.cm.tab10(idx % 10)  # consistent color
+
+    # Plot dashed horizontal line for the first value (excluding from legend)
+    plt.axhline(y=values[0], color=color, linestyle='--', linewidth=1.5)
+
+    # Plot the rest of the data (excluding first element)
+    plt.plot(nthreads[1:], values[1:], marker=marker, label=label,
+             color=color, linewidth=2, markersize=8)
 
 plt.grid(True)
-plt.xticks(exponents, [f'{2**i}' for i in exponents])
+plt.xscale('log', base=2)
+plt.xticks(nthreads[1:], [str(int(x)) for x in nthreads[1:]])
 plt.xlabel('Number of Threads')
 plt.ylabel('Queries per Second')
-plt.title(f'KNN: Throughput vs Number of Threads (System Cores: {n_cores})')
-plt.legend(loc='lower right')
+plt.title(f'KNN: Throughput vs Threads (System Cores: {n_cores})')
+plt.legend(loc='best')
 
 # === Save figure ===
 output_dir = os.path.join('..', '..', 'docs', 'figures')
 os.makedirs(output_dir, exist_ok=True)
 output_path = os.path.join(output_dir, 'knn_throughput_vs_threads.png')
+plt.tight_layout()
 plt.savefig(output_path)
 
 print(f"Plot saved to: {output_path}")
