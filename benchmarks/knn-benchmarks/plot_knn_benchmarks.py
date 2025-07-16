@@ -35,7 +35,7 @@ for key, values in queries_data.items():
 n_cores = os.cpu_count()
 
 # === Plot ===
-plt.figure(figsize=(8, 6))
+plt.figure()
 
 markers = ['o', 's', '^', 'v', 'D', 'P', '*', 'X', '<', '>']
 

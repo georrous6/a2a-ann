@@ -3,28 +3,18 @@
 #include <sys/time.h>
 #include <string.h>
 #include "ioutil.h"
-#include "a2a_ann.h"
+#include "ann_benchmark.h"
 
 
 // Function to set terminal color
-void setColor(const char *colorCode) 
-{
+void setColor(const char *colorCode) {
     printf("%s", colorCode);
 }
 
-// ANSI escape codes for text colors
-#define DEFAULT        "\033[0m"
-#define BOLD_RED       "\033[1;31m"
-#define BOLD_GREEN     "\033[1;32m"
-#define BOLD_BLUE      "\033[1;34m"
 
-#define THREAD_CASES 5   // Number of thread cases to benchmark
-#define CLUSTER_CASES 5  // Number of cluster cases to benchmark
-#define MAX_MEMORY_USAGE_RATIO 0.5
+int ann_benchmark(const char *filename, int *nthreads, int *num_clusters, 
+    const char *output_file, parallelization_type_t parallelization_mode) {
 
-
-int ann_benchmark(const char *filename, int *nthreads, int *num_clusters, const char *output_file)
-{
     setColor(BOLD_BLUE);
     printf("\nOpening %s ...\n", filename);
     setColor(DEFAULT);
@@ -88,7 +78,7 @@ int ann_benchmark(const char *filename, int *nthreads, int *num_clusters, const 
             
             gettimeofday(&tstart, NULL);
             if (a2a_annsearch(train_test, N, L, K, num_clusters[c], my_all_to_all_neighbors, 
-                my_all_to_all_distances, nthreads[t], MAX_MEMORY_USAGE_RATIO, PAR_PTHREADS)) goto cleanup;
+                my_all_to_all_distances, nthreads[t], MAX_MEMORY_USAGE_RATIO, parallelization_mode)) goto cleanup;
             gettimeofday(&tend, NULL);
             long execution_time_usec = (tend.tv_sec - tstart.tv_sec) * 1000000L + (tend.tv_usec - tstart.tv_usec);
             execution_time[t][c] = execution_time_usec / 1e6f;  // Convert to seconds
@@ -112,6 +102,8 @@ int ann_benchmark(const char *filename, int *nthreads, int *num_clusters, const 
 
             printf("\n\n===================\n");
             printf("ANN Benchmark\n");
+            printf("Parallelization mode: %s\n", parallelization_mode == PAR_PTHREADS ? "pthreads" :
+                   (parallelization_mode == PAR_OPENMP ? "openmp" : "opencilk"));
             printf("Number of threads: %d\n", nthreads[t]);
             printf("Number of clusters: %d\n", num_clusters[c]);
             printf("Execution time: %f sec\n", execution_time[t][c]);
@@ -269,37 +261,4 @@ cleanup:
     if (all_to_all_neighbors) free(all_to_all_neighbors);
 
     return status;
-}
-
-
-int main(int argc, char *argv[])
-{
-    if (argc < 3) 
-    {
-        fprintf(stderr, "Usage: %s <dataset> <benchmark_output>\n", argv[0]);
-        return EXIT_FAILURE;
-    }
-
-    int ann_nthreads[THREAD_CASES] = {1, 2, 4, 8, 16};
-    int num_clusters[CLUSTER_CASES] = {5, 10, 20, 50, 100};
-
-    if (ann_benchmark(argv[1], ann_nthreads, num_clusters, argv[2])) {
-        fprintf(stderr, "A2A Benchmark failed for %s.\n", argv[1]);
-        return EXIT_FAILURE;
-    }
-
-    int nthreads = 4;
-    parallelization_type_t parallelization_mode = PAR_PTHREADS;
-    if (ann_recall_vs_throughput(argv[1], nthreads, num_clusters, argv[2], parallelization_mode)) {
-        fprintf(stderr, "A2A Benchmark failed for %s.\n", argv[1]);
-        return EXIT_FAILURE;
-    }
-
-    parallelization_mode = PAR_OPENMP;
-    if (ann_recall_vs_throughput(argv[1], nthreads, num_clusters, argv[2], parallelization_mode)) {
-        fprintf(stderr, "A2A Benchmark failed for %s.\n", argv[1]);
-        return EXIT_FAILURE;
-    }
-
-    return EXIT_SUCCESS;
 }

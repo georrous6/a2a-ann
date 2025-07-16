@@ -2,16 +2,16 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Build Debug",
+            "label": "Build OpenMP and OpenCilk",
             "type": "shell",
-            "command": "cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build",
+            "command": "CC=gcc cmake -S . -B build_openmp -DCMAKE_BUILD_TYPE=Debug && cmake --build build_openmp && CC=/home/grous/opencilk/bin/clang cmake -S . -B build_opencilk -DCMAKE_BUILD_TYPE=Debug -DUSE_OPENCILK=ON && cmake --build build_opencilk",
             "problemMatcher": [],
             "group": "build"
         },
         {
-            "label": "Build Release",
+            "label": "Build OpenMP",
             "type": "shell",
-            "command": "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DPRECISION=DOUBLE && cmake --build build",
+            "command": "CC=gcc cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build",
             "problemMatcher": [],
             "group": "build"
         }

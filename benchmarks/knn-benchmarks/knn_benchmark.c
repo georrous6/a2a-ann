@@ -4,21 +4,13 @@
 #include <string.h>
 #include "ioutil.h"
 #include "a2a_knn.h"
+#include "knn_benchmark.h"
 
 
 // Function to set terminal color
 void setColor(const char *colorCode) {
     printf("%s", colorCode);
 }
-
-// ANSI escape codes for text colors
-#define DEFAULT        "\033[0m"
-#define BOLD_RED       "\033[1;31m"
-#define BOLD_GREEN     "\033[1;32m"
-#define BOLD_BLUE      "\033[1;34m"
-
-#define THREAD_CASES 7   // Number of thread cases to benchmark
-#define MAX_MEMORY_USAGE_RATIO 0.5
 
 
 int knn_benchmark(const char *filename, int *nthreads, int *cblas_threads, const char *output_file, 
@@ -145,30 +137,4 @@ cleanup:
     if (neighbors) free(neighbors);
 
     return status;
-}
-
-
-int main(int argc, char *argv[])
-{
-    if (argc < 3) {
-        fprintf(stderr, "Usage: %s <dataset> <benchmark_output>\n", argv[0]);
-        return EXIT_FAILURE;
-    }
-
-    int nthreads[THREAD_CASES] = {1, 1, 2, 4, 8, 16, 32};
-    int cblas_threads[THREAD_CASES] = {4, 1, 1, 1, 1, 1, 1};
-
-    parallelization_type_t par_type = PAR_PTHREADS;
-    if (knn_benchmark(argv[1], nthreads, cblas_threads, argv[2], par_type)) {
-        fprintf(stderr, "KNN Benchmark failed for parallelization mode %d.\n", par_type);
-        return EXIT_FAILURE;
-    }
-
-    par_type = PAR_OPENMP;
-    if (knn_benchmark(argv[1], nthreads, cblas_threads, argv[2], par_type)) {
-        fprintf(stderr, "KNN Benchmark failed for parallelization mode %d.\n", par_type);
-        return EXIT_FAILURE;
-    }
-
-    return EXIT_SUCCESS;
 }

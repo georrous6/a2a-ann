@@ -1,47 +1,48 @@
 #!/bin/bash
+set -e  # Exit immediately if any command fails
 
-# Check if dataset path argument is provided
+# Usage check
 if [ -z "$1" ]; then
     echo "Usage: $0 <dataset-path>"
     exit 1
 fi
 
-# Define variables
+# Variables
 DATASET_PATH="$1"
-SCRIPT_DIR="$(dirname "$0")"                              # Directory where this script is located
-EXECUTABLE_PATH="$SCRIPT_DIR/../../build/ann_benchmarks"  # Path to the executable
-
-# Construct benchmark output file name in the same directory as dataset
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BENCHMARK_OUTPUT="$SCRIPT_DIR/ann_benchmark_output.hdf5"
 
-# Check if the executable exists
-if [ ! -f "$EXECUTABLE_PATH" ]; then
-    echo "Error: Executable '$EXECUTABLE_PATH' not found."
-    echo "Please build the project first using cmake with Debug configuration"
-    exit 1
-fi
+declare -A EXECUTABLES=(
+    [OpenMP]="$SCRIPT_DIR/../../build_openmp/ann_benchmark_openmp"
+    [OpenCilk]="$SCRIPT_DIR/../../build_opencilk/ann_benchmark_opencilk"
+)
 
-# Check if the dataset file exists
+# Check if dataset exists
 if [ ! -f "$DATASET_PATH" ]; then
     echo "Error: Dataset file '$DATASET_PATH' not found."
     exit 1
 fi
 
-# Run the Python script to compute all-to-all KNN
+# Check if executables exist
+for NAME in "${!EXECUTABLES[@]}"; do
+    EXECUTABLE="${EXECUTABLES[$NAME]}"
+    if [ ! -f "$EXECUTABLE" ]; then
+        echo "Error: $NAME executable not found at '$EXECUTABLE'. Please build it."
+        exit 1
+    fi
+done
+
+# Step 1: Compute ground truth
 python3 compute_all_to_all_knn.py "$DATASET_PATH"
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to compute all-to-all KNN."
-    exit 1
-fi
 
-# Run the executable with the dataset path and benchmark output file as arguments
-"$EXECUTABLE_PATH" "$DATASET_PATH" "$BENCHMARK_OUTPUT"
-if [ $? -ne 0 ]; then
-    echo "Error: Execution of the program failed."
-    exit 1
-fi
+# Step 2: Run benchmarks
+for NAME in "${!EXECUTABLES[@]}"; do
+    EXECUTABLE="${EXECUTABLES[$NAME]}"
+    echo "Step 2: Running $NAME benchmark..."
+    "$EXECUTABLE" "$DATASET_PATH" "$BENCHMARK_OUTPUT"
+done
 
-# Call the MATLAB function to plot results, passing the benchmark output file
+# Step 3: Plot results
 python3 plot_ann_benchmarks.py "$BENCHMARK_OUTPUT"
 
-echo "ANN benchmark completed successfully."
+echo "ANN Benchmark completed successfully."

@@ -1,40 +1,53 @@
 #!/bin/bash
 
+# Exit immediately if any command fails
+set -e
+
 # Check if dataset path argument is provided
 if [ -z "$1" ]; then
     echo "Usage: $0 <dataset-path>"
     exit 1
 fi
 
-# Define variables
 DATASET_PATH="$1"
-SCRIPT_DIR="$(dirname "$0")"                              # Directory where this script is located
-EXECUTABLE_PATH="$SCRIPT_DIR/../../build/knn_benchmarks"  # Path to the executable
+SCRIPT_DIR="$(dirname "$0")"
 
-# Construct benchmark output file name in the same directory as dataset
+# Executable paths
+EXECUTABLES=(
+    "$SCRIPT_DIR/../../build_openmp/knn_benchmark_openmp"
+    "$SCRIPT_DIR/../../build_opencilk/knn_benchmark_opencilk"
+)
+
 BENCHMARK_OUTPUT="$SCRIPT_DIR/knn_benchmark_output.hdf5"
 
-# Check if the executable exists
-if [ ! -f "$EXECUTABLE_PATH" ]; then
-    echo "Error: Executable '$EXECUTABLE_PATH' not found."
-    echo "Please build the project first using cmake with Debug configuration."
-    exit 1
-fi
-
-# Check if the dataset file exists
+# Check if dataset file exists
 if [ ! -f "$DATASET_PATH" ]; then
     echo "Error: Dataset file '$DATASET_PATH' not found."
     exit 1
 fi
 
-# Run the executable with the dataset path and benchmark output file as arguments
-"$EXECUTABLE_PATH" "$DATASET_PATH" "$BENCHMARK_OUTPUT"
-if [ $? -ne 0 ]; then
-    echo "Error: Execution of the program failed."
+# Check if executables exist
+for exec in "${EXECUTABLES[@]}"; do
+    if [ ! -f "$exec" ]; then
+        echo "Error: Executable '$exec' not found. Please build the project first using CMake with Debug configuration."
+        exit 1
+    fi
+done
+
+# Run each executable
+for exec in "${EXECUTABLES[@]}"; do
+    echo "Running $(basename "$exec")..."
+    if ! "$exec" "$DATASET_PATH" "$BENCHMARK_OUTPUT"; then
+        echo "Error: Execution of '$(basename "$exec")' failed."
+        exit 1
+    fi
+done
+
+# Run the plotting script
+echo "Generating plots..."
+if ! python3 plot_knn_benchmarks.py "$BENCHMARK_OUTPUT"; then
+    echo "Error: Plotting script failed."
     exit 1
 fi
-
-# Call the MATLAB function to plot results, passing the benchmark output file
-python3 plot_knn_benchmarks.py "$BENCHMARK_OUTPUT"
 
 echo "KNN benchmark completed successfully."

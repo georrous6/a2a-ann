@@ -67,3 +67,7 @@ config.status
 *.asv
 *.mat
 *.hdf5
+
+# Custom build directories
+build_openmp/
+build_opencilk/

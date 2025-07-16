@@ -111,56 +111,76 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     # === KNN benchmark target ===
 
     # KNN benchmark sources
-    file(GLOB KNN_BENCHMARK_SOURCES 
-        "${PROJECT_SOURCE_DIR}/benchmarks/knn-benchmarks/*.c" 
+    file(GLOB KNN_OPENMP_BENCHMARK_SOURCES 
+        "${PROJECT_SOURCE_DIR}/benchmarks/knn-benchmarks/knn_benchmark_openmp.c"
+        "${PROJECT_SOURCE_DIR}/benchmarks/knn-benchmarks/knn_benchmark.c" 
         "${PROJECT_SOURCE_DIR}/utils/*.c"
     )
 
-    add_executable(knn_benchmarks
-        ${KNN_BENCHMARK_SOURCES}
-    )
-    target_compile_definitions(knn_benchmarks 
-        PRIVATE 
-            SINGLE_PRECISION
-    )
-    target_include_directories(knn_benchmarks
-        PRIVATE
-            ${HDF5_INCLUDE_DIRS}
-            "${PROJECT_SOURCE_DIR}/include"
-            "${PROJECT_SOURCE_DIR}/utils"
-    )
-    target_link_libraries(knn_benchmarks
-        PRIVATE
-            anns_debug
-            ${HDF5_LIBRARIES}
-    )
-
-    # === ANN benchmark target ===
-
-    # ANN benchmark sources
-    file(GLOB ANN_BENCHMARK_SOURCES 
-        "${PROJECT_SOURCE_DIR}/benchmarks/ann-benchmarks/*.c" 
+    file(GLOB KNN_OPENCILK_BENCHMARK_SOURCES 
+        "${PROJECT_SOURCE_DIR}/benchmarks/knn-benchmarks/knn_benchmark_opencilk.c"
+        "${PROJECT_SOURCE_DIR}/benchmarks/knn-benchmarks/knn_benchmark.c" 
         "${PROJECT_SOURCE_DIR}/utils/*.c"
     )
 
-    add_executable(ann_benchmarks
-        ${ANN_BENCHMARK_SOURCES}
-    )
-    target_compile_definitions(ann_benchmarks 
-        PRIVATE 
-            SINGLE_PRECISION
-    )
-    target_include_directories(ann_benchmarks
-        PRIVATE
+    add_executable(knn_benchmark_openmp ${KNN_OPENMP_BENCHMARK_SOURCES})
+    add_executable(knn_benchmark_opencilk ${KNN_OPENCILK_BENCHMARK_SOURCES})
+
+    foreach(target knn_benchmark_openmp knn_benchmark_opencilk)
+        target_compile_definitions(${target} 
+            PRIVATE 
+                SINGLE_PRECISION
+        )
+        target_include_directories(${target} 
+        PRIVATE         
             ${HDF5_INCLUDE_DIRS}
             "${PROJECT_SOURCE_DIR}/include"
             "${PROJECT_SOURCE_DIR}/utils"
+            "${PROJECT_SOURCE_DIR}/benchmarks/knn-benchmarks"
+        )
+        target_link_libraries(${target} 
+            PRIVATE 
+                anns_debug
+                ${HDF5_LIBRARIES}
+        )
+    endforeach()
+
+    # === ANN benchmark targets ===
+
+    file(GLOB ANN_BENCHMARK_OPENMP_SOURCES 
+        "${PROJECT_SOURCE_DIR}/benchmarks/ann-benchmarks/ann_benchmark_openmp.c"
+        "${PROJECT_SOURCE_DIR}/benchmarks/ann-benchmarks/ann_benchmark.c" 
+        "${PROJECT_SOURCE_DIR}/utils/*.c"
     )
-    target_link_libraries(ann_benchmarks
-        PRIVATE
-            anns_debug
-            ${HDF5_LIBRARIES}
+
+    file(GLOB ANN_BENCHMARK_OPENCILK_SOURCES 
+        "${PROJECT_SOURCE_DIR}/benchmarks/ann-benchmarks/ann_benchmark_opencilk.c"
+        "${PROJECT_SOURCE_DIR}/benchmarks/ann-benchmarks/ann_benchmark.c" 
+        "${PROJECT_SOURCE_DIR}/utils/*.c"
     )
+
+    add_executable(ann_benchmark_openmp ${ANN_BENCHMARK_OPENMP_SOURCES})
+    add_executable(ann_benchmark_opencilk ${ANN_BENCHMARK_OPENCILK_SOURCES})
+
+    foreach(target ann_benchmark_openmp ann_benchmark_opencilk)
+        target_compile_definitions(${target} 
+            PRIVATE 
+                SINGLE_PRECISION
+        )
+        target_include_directories(${target} 
+        PRIVATE         
+            ${HDF5_INCLUDE_DIRS}
+            "${PROJECT_SOURCE_DIR}/include"
+            "${PROJECT_SOURCE_DIR}/utils"
+            "${PROJECT_SOURCE_DIR}/benchmarks/ann-benchmarks"
+        )
+        target_link_libraries(${target} 
+            PRIVATE 
+                anns_debug
+                ${HDF5_LIBRARIES}
+        )
+    endforeach()
+
 
     # === KNN example target ===
     file(GLOB KNN_EXAMPLE_SOURCES 
@@ -211,20 +231,20 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
             ${HDF5_LIBRARIES}
     )
 
-else()  # Release build type
-    
-    add_library(a2ann STATIC ${SRC_FILES})
-    target_compile_definitions(a2ann 
-        PRIVATE 
-            ${PRECISION}_PRECISION
-    )
-    target_include_directories(a2ann
-        PUBLIC
-            ${OpenBLAS_INCLUDE_DIRS}
-            "${PROJECT_SOURCE_DIR}/include"
-    )
-    target_link_libraries(a2ann
-        PUBLIC
-            ${OpenBLAS_LIBRARIES}
-    )
 endif()
+    
+# Create the main library
+add_library(a2ann STATIC ${SRC_FILES})
+target_compile_definitions(a2ann 
+    PRIVATE 
+        ${PRECISION}_PRECISION
+)
+target_include_directories(a2ann
+    PUBLIC
+        ${OpenBLAS_INCLUDE_DIRS}
+        "${PROJECT_SOURCE_DIR}/include"
+)
+target_link_libraries(a2ann
+    PUBLIC
+        ${OpenBLAS_LIBRARIES}
+)

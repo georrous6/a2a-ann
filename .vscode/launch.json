@@ -10,7 +10,7 @@
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/tests",
             "MIMode": "gdb",
-            "preLaunchTask": "Build Debug"
+            "preLaunchTask": "Build OpenMP"
         },
         {
             "name": "Run KNN Benchmarks",
@@ -22,7 +22,7 @@
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/benchmarks/knn-benchmarks",
             "MIMode": "gdb",
-            "preLaunchTask": "Build Debug"
+            "preLaunchTask": "Build OpenMP and OpenCilk"
         },
         {
             "name": "Run ANN Benchmarks",
@@ -34,7 +34,7 @@
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/benchmarks/ann-benchmarks",
             "MIMode": "gdb",
-            "preLaunchTask": "Build Debug"
+            "preLaunchTask": "Build OpenMP and OpenCilk"
         },
         {
             "name": "Debug KNN",
@@ -45,7 +45,7 @@
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",
             "MIMode": "gdb",
-            "preLaunchTask": "Build Debug"
+            "preLaunchTask": "Build OpenMP"
         },
         {
             "name": "Debug ANN",
@@ -56,7 +56,7 @@
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",
             "MIMode": "gdb",
-            "preLaunchTask": "Build Debug"
+            "preLaunchTask": "Build OpenMP"
         }
     ]
 }
