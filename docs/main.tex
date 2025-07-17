@@ -1,298 +1,451 @@
-\documentclass[conference]{IEEEtran}
+\documentclass{article}
+\usepackage[a4paper, margin=1in]{geometry}
 \usepackage{amsmath}
 \usepackage{graphicx}
-\usepackage{algorithm}
-\usepackage{algorithmic}
 \usepackage{hyperref}
 \usepackage{amssymb}
+\usepackage{makecell}
 
-\title{Parallelized All to All Approximate Nearest Neighbors Solution}
-\author{\IEEEauthorblockN{Rousomanis Georgios (10703)}
-\IEEEauthorblockA{Department of Electrical and Computer Engineering\\
+\title{Parallelized Exact k-Nearest Neighbors Implementation}
+\author{Rousomanis Georgios (10703)\\
+Department of Electrical and Computer Engineering\\
 Aristotle University of Thessaloniki\\
-Email: rousoman@ece.auth.gr}
+Email: rousoman@ece.auth.gr
 }
 
 \begin{document}
 \maketitle
 
-\begin{abstract}
-This report presents the design and implementation of a parallelized solution to the all-to-all 
-approximate nearest neighbors (A2A-ANN) problem, with an emphasis on scalability and computational 
-efficiency. While the ultimate objective is to accelerate approximate similarity search in 
-high-dimensional spaces where the query and candidate sets are identical ($Q = C$), the current 
-work establishes a robust foundation by first solving the generalized exact k-nearest neighbors 
-(k-NN) problem for the case where $Q \neq C$. The proposed implementation leverages multi-threaded 
-processing and efficient matrix operations to parallelize the distance computation and top-$K$ 
-selection stages. We outline the core algorithmic components, discuss strategies for memory-efficient 
-execution, and lay the groundwork for extending the approach to approximate search in large-scale datasets.
-
-\end{abstract}
-
 \section{Introduction}
-Finding the $K$ nearest neighbors (k-NN) of a point in a dataset is a fundamental operation in a wide 
-range of applications, including machine learning, computer vision, information retrieval, and recommendation
-systems. In its classical form, the k-NN algorithm identifies, for each query vector, the $K$ closest vectors 
-in a reference dataset based on a distance metric—commonly the Euclidean distance.
 
-This report addresses the challenge of scaling the k-NN algorithm to large datasets by parallelizing the 
-computation. The ultimate goal is to solve the all-to-all approximate nearest neighbors (A2A-ANN) problem, 
-where the query and candidate datasets are identical ($Q = C$), and exactness can be traded off for speed. 
-This form of similarity search arises frequently in applications such as clustering, graph construction, 
-and manifold learning.
+The goal of this project is to develop an efficient parallel solution to the 
+\textbf{approximate all-to-all nearest neighbors (ANN)} problem. This task is crucial in 
+large-scale data analysis applications, where computing exact all-to-all $k$-nearest neighbors 
+becomes computationally infeasible due to the quadratic complexity in both runtime and memory. 
 
-As a foundational step toward the A2A-ANN goal, we begin with a parallelized implementation of the 
-generalized exact k-NN problem ($Q \neq C$). This allows us to validate the parallel architecture, distance
-computation kernel, and top-$K$ selection strategy in a controlled setting before introducing approximation 
-techniques.
+As a first step, we implemented a highly optimized and parallelized 
+\textbf{exact k-Nearest Neighbors (k-NN)} algorithm to establish a baseline for correctness and 
+to study the performance characteristics of parallel execution strategies. This implementation 
+allowed us to gain valuable insights into memory management, batching strategies, and parallel 
+workload distribution across multiple threading models.
 
-Key contributions of this work include:
-\begin{itemize}
-    \item A parallelized implementation of the exact k-NN algorithm optimized for multi-core CPUs, 
-    featuring block-wise processing and thread-level workload balancing.
-    \item An extension of the exact framework to an approximate all-to-all nearest neighbors solution 
-    using clustering to reduce computational complexity.
-    \item A memory-efficient design that adapts dynamically to hardware constraints and minimizes overhead 
-    through reuse of pre-allocated buffers.
-    \item Comprehensive benchmarking on standard datasets demonstrating significant throughput gains while 
-    maintaining acceptable levels of recall.
-\end{itemize}
+Building on these foundations, we extended the approach to the more challenging 
+\textbf{approximate all-to-all nearest neighbors} problem using a clustering-based approximation 
+strategy. This method reduces the computational cost by partitioning the dataset into smaller 
+subsets and performing local exact k-NN computations, allowing for significant acceleration
+with a controlled trade-off in accuracy.
 
-This report focuses on both the algorithmic design and practical implementation aspects, including 
-parallelization strategies, memory management techniques, and the trade-offs between accuracy and 
-computational efficiency. The remainder of the report is organized as follows: Section II presents 
-the parallelized exact k-NN algorithm and its performance benchmarks. Section III details the approximate 
-A2A-ANN solution based on clustering and evaluates its scalability and accuracy trade-offs. Finally, 
-Section IV concludes with a summary of findings and directions for future work.
+Our work systematically evaluates the accuracy, throughput, and scalability of the proposed 
+methods under different parallelization frameworks (Pthreads, OpenMP, OpenCilk), cluster 
+granularities, and thread configurations.
 
+\section{k-Nearest Neighbors Implementation}
 
-\section{Parallelized k-Nearest Neighbors}
+\subsection{Problem Definition}
 
-The core objective of the algorithm is to identify the $K$ nearest neighbors for each row in a query 
-matrix $Q \in \mathbb{R}^{M \times L}$, by comparing it against a reference matrix $C \in \mathbb{R}^{N \times L}$.
-Although this report initially assumes $Q \neq C$, the framework is designed to extend seamlessly to the all-to-all
-setting where $Q = C$.
+The \textbf{k-Nearest Neighbors (k-NN)} problem involves finding, for each query point, the $k$ 
+closest points from a reference corpus according to a specified distance metric. Formally, given 
+a set of $N$ data points (the corpus) $C \in \mathbb{R}^{N \times D}$ and a set of $M$ query 
+points $Q \in \mathbb{R}^{M \times D}$, the goal is to identify, for each $q_i \in Q$, the $k$ 
+nearest neighbors in $C$ based on pairwise distances.
 
-To measure similarity between vectors, the squared Euclidean distance is used. This choice simplifies the 
-computation as it can be expressed in a form that enables precomputation and vectorized operations:
+In this implementation, the \textbf{squared Euclidean distance} is used, which can be efficiently 
+computed in matrix form without explicit loops. The pairwise distance matrix 
+$D \in \mathbb{R}^{M \times N}$ between $Q$ and $C$ is calculated as:
 
 \[
-D = \sqrt{C^2 - 2CQ^\top + {Q^2}^{\top}}
+D = \|Q\|^2 + \|C\|^2 - 2 Q C^\top
 \]
-where the square root and the exponentiation are computed element-wise.
 
-\subsection{Parallelization Strategy and Task Management}
-
-To ensure scalability and efficient utilization of computational resources, the algorithm employs multi-threaded 
-parallelization based on \texttt{pthreads}, offering fine-grained control over thread management and workload 
-distribution. The overall computation is structured around a block-wise processing strategy, where the query 
-matrix $Q$ is partitioned into blocks that are dynamically sized to respect the memory constraints of the system. 
-Each block is processed independently in parallel before proceeding to the next, ensuring predictable memory usage 
-and stable performance across varying hardware configurations.
-
-The principal components of the parallelization pipeline are as follows:
-
+where:
 \begin{itemize}
-    \item Precomputation of squared norms of all row vectors in $C$, enabling efficient vectorized computation 
-    of pairwise distances.
-    \item Distribution of each query block's workload across threads, with each thread assigned a contiguous 
-    subset of queries to minimize synchronization overhead.
-    \item Batched computation of distances between subsets of $Q$ and the full corpus $C$ using optimized matrix 
-    multiplication routines (e.g., GEMM from OpenBLAS), which maximizes cache locality and takes advantage of 
-    low-level CPU vectorization (SIMD).
-    \item Thread synchronization after completion of each query block, ensuring correctness and consistent 
-    progression across computational phases.
+    \item $\|Q\|^2$ is the vector of squared norms of the query points, broadcasted across columns,
+    \item $\|C\|^2$ is the vector of squared norms of the corpus points, broadcasted across rows,
+    \item $Q C^\top$ is the matrix of dot products between query and corpus points.
 \end{itemize}
 
-Each thread operates independently within its assigned portion of the query block, following a pipeline 
-that includes distance computation, incorporation of precomputed norms, and top-$K$ selection. 
-The top-$K$ nearest neighbors are identified using a QuickSelect-based partial selection algorithm, 
-which avoids the computationally intensive full sort and achieves expected linear time complexity, 
-significantly accelerating the nearest neighbor identification phase.
+This formulation avoids explicit nested loops and enables the use of optimized matrix multiplication 
+routines for efficient distance computation.
 
-\subsection{Memory Management Considerations}
+\subsection{Algorithm Overview}
 
-Memory management is handled explicitly, with per-thread memory buffers pre-allocated and reused across 
-blocks to minimize frequent allocations and deallocations. The size of the query blocks is adaptively 
-tuned at runtime based on empirical measurements of available memory and cache performance, ensuring high 
-throughput while avoiding memory overcommitment. Additionally, the use of blocked matrix multiplication 
-reduces cache misses and optimizes utilization of the CPU’s hierarchical memory.
+\subsubsection{Memory Management}
+Efficient memory management is essential due to the $O(N^2)$ complexity of pairwise distance computations. 
+The algorithm employs the following strategies:
 
-\subsection{Validation and Robustness}
-
-The correctness of the implementation was validated against Scikit-Learn’s \texttt{NearestNeighbors} module, 
-using multiple random datasets and rigorous cross-checking of both distance values and neighbor indices. 
-Numerical consistency was ensured through unit testing with controlled seeds and reproducibility of results.
-
-Overall, this design combines low-level threading control, efficient numerical computation, and adaptive memory 
-management, establishing a robust and scalable framework for high-performance exact nearest neighbor computation. 
-These architectural decisions lay a solid foundation for future integration of approximate search techniques and 
-extension to the all-to-all nearest neighbor problem.
-
-
-\subsection{k-Nearest Neighbors Benchmarks}
-
-We evaluated the performance of the exact k-NN implementation by varying the number of threads used during 
-execution. Benchmarks were conducted using the MNIST dataset on a 4-core system running Ubuntu 22.04 LTS. 
-The results are presented in Fig.~\ref{fig:knn_throughput_vs_threads}.
-
-The plot illustrates how query throughput (measured in queries per second) increases with the number of threads,
-peaking when the number of threads matches the number of physical CPU cores. Beyond this point, performance 
-begins to degrade due to overheads associated with thread contention and context switching.
-
-The blue solid line shows the performance of our algorithm when the number of application-level threads corresponds
-to the x-axis value, while the number of OpenBLAS threads is fixed at one. The red dashed line, in contrast, 
-represents performance when our algorithm runs with a single thread while OpenBLAS utilizes all 4 cores internally.
-
-It is evident that the best performance is achieved when our parallelized implementation manages the 4 threads 
-directly, resulting in a speedup of approximately $\times1.4$ compared to relying solely on OpenBLAS multithreading. 
-This improvement is attributed to more efficient workload distribution and reduced overhead in the application's 
-threading model.
-
-\begin{figure}
-\centering
-\includegraphics[width=1\linewidth]{figures/knn_throughput_vs_threads.png}
-\caption{Performance comparison of different threading configurations for exact k-NN on the MNIST dataset.}
-\label{fig:knn_throughput_vs_threads}
-\end{figure}
-
-\section{All-to-All Approximate Nearest Neighbors Solution}
-
-In this section, we extend the parallelized k-NN framework to approximate all-to-all nearest neighbors (A2A-ANN), where the query set and candidate set coincide ($Q = C$). To ensure scalability on large datasets, we introduce approximation techniques based on clustering, which limit exhaustive comparisons while maintaining acceptable accuracy levels. This section elaborates on the clustering strategy, parallel workload distribution, memory management considerations, and the trade-off between approximation accuracy and computational throughput.
-
-\subsection{Clustering Strategy: K-Means Partitioning}
-
-To reduce the computational complexity of pairwise distance calculations, we partition the dataset into $K_c$ clusters using the k-means clustering algorithm. Each data point $x_i \in C$ is assigned to one of $K_c$ cluster centroids based on its minimum Euclidean distance. 
-
-The k-means algorithm operates in two primary phases:
 \begin{itemize}
-    \item \textbf{Initialization:} Cluster centroids are initialized via random sampling to ensure a diverse 
-    starting configuration. Data points not selected as initial centroids are assigned to the nearest centroid 
-    based on Euclidean distance.
+    \item \textbf{Batch Size Estimation:} The batch size $B$ is determined at runtime based on a user-defined 
+    fraction of available system memory (e.g., 50\%), ensuring intermediate buffers (distance matrices, norms,
+    results) remain within safe memory limits.
     
-    \item \textbf{Cluster Merging:} After initial assignment, clusters with fewer than $K$ points are iteratively
-    merged with their nearest neighboring cluster. The proximity between clusters is determined by the Euclidean 
-    distance between their centroids, where each centroid is computed as the mean of the points assigned to the 
-    respective cluster. This merging strategy ensures that all clusters have a sufficient number of points for 
-    $K$-nearest neighbor computation while preserving local structure.
+    \item \textbf{Batch Processing:} Queries are processed in batches of size $B$, reducing peak memory usage 
+    from $O(N^2)$ to $O(B \times N)$ while enabling efficient blocked matrix operations.
+    
+    \item \textbf{Preallocation and Reuse:} Temporary buffers for norms, distances, and neighbor indices are 
+    preallocated once and reused across batches, minimizing allocation overhead and avoiding heap fragmentation.
 \end{itemize}
 
-By restricting the nearest neighbor search to within clusters, we reduce the effective search space from $N$ points 
-to approximately $N/K_c$ points per query.
+\subsubsection{Parallelization Strategy}
 
-This clustering stage serves as a coarse pre-filtering mechanism, significantly reducing the number of distance 
-computations without major sacrifices in accuracy.
+The main computational bottleneck of the algorithm lies in two stages: (i) the matrix multiplication between 
+the query batches and the corpus, and (ii) the $k$-selection step to extract the nearest neighbors. To address
+this, parallelism is applied across both stages as follows:
 
-\subsection{Workload Balancing and Parallelization}
+\begin{enumerate}
+    \item \textbf{Workload Distribution:} Each batch of queries is partitioned into contiguous blocks of 
+    memory, with each thread responsible for processing a disjoint subset of the queries. This approach ensures 
+    cache-friendly memory access and minimizes false sharing.
+    
+    \item \textbf{Dot Product Computation:} Within each batch, each thread independently computes dot products
+    between its assigned query vectors and the full corpus. Matrix multiplication is performed via OpenBLAS 
+    in single-threaded mode to avoid thread contention with the outer parallel loop.
+    
+    \item \textbf{$k$-Selection Step:} After computing pairwise distances, each thread executes a partial 
+    sorting procedure (using \texttt{QuickSelect}) on its assigned queries to efficiently determine the $k$ 
+    nearest neighbors without fully sorting all distances.
+    
+    \item \textbf{Thread Synchronization:} Upon completing the computations for their assigned queries 
+    within a batch, all threads synchronize implicitly at the batch boundary. The program then proceeds to 
+    the next batch, maintaining strict batch-wise independence to prevent data hazards.
+\end{enumerate}
 
-The all-to-all ANN implementation retains a multi-threaded design to achieve high computational throughput. 
-However, unlike the $Q \neq C$ scenario where queries are evenly split among threads, the cluster-based strategy
-introduces non-uniform workload distribution due to varying cluster sizes.
+\subsubsection{Parallelization Methods}
 
-To address this, we employ a greedy load-balancing strategy:
+\paragraph{Pthreads Implementation}
+
 \begin{itemize}
-    \item Clusters are sorted in descending order based on the number of points.
-    \item A bin-packing approach is used where each cluster is assigned to the thread with the currently 
-    least assigned workload (in terms of total points).
-    \item Each thread independently computes intra-cluster $K$ nearest neighbors, avoiding inter-thread 
-    synchronization during the computation phase.
+    \item A fixed-size thread pool is created explicitly at the start of the program and remains active 
+    throughout execution, eliminating the overhead of repeated thread creation and destruction.
+    \item Synchronization is handled manually using mutexes and condition variables to coordinate thread activity.
+    \item Upon program completion, the thread pool along with all auxiliary data structures are properly destroyed 
+    to ensure clean resource deallocation.
 \end{itemize}
 
-This dynamic allocation minimizes thread idling and balances the computational workload even when cluster 
-sizes vary significantly. Parallel efficiency is maximized, and the linear scaling behavior with respect to 
-CPU cores is largely retained, as demonstrated in the benchmarking results.
+\paragraph{OpenMP Implementation}
 
-\subsection{Memory Efficiency Considerations}
-
-The introduction of clustering contributes to memory savings by limiting the scope of pairwise distance 
-calculations. Instead of allocating memory for a full $N \times N$ distance matrix, each thread only requires 
-memory for:
 \begin{itemize}
-    \item The distance matrix corresponding to points within its assigned cluster(s), typically of size 
-    $O\left(\left(\frac{N}{K_c}\right)^2\right)$.
-    \item Temporary buffers for sorting and top-$K$ selection, scaled proportionally to cluster sizes.
-    \item Precomputed norms of all points, shared across threads in a read-only fashion.
+    \item Thread management is fully automated: threads are spawned and managed by the OpenMP runtime, 
+    with no need for manual thread pool creation.
+    \item Synchronization and workload distribution are handled implicitly via compiler directives, such as 
+    \texttt{\#pragma omp parallel for}, reducing developer effort and minimizing synchronization code.
+    \item Upon completion of parallel regions, OpenMP automatically manages thread teardown and resource 
+    cleanup, requiring no manual intervention for deallocation.
 \end{itemize}
 
-Memory buffers are pre-allocated and reused across multiple cluster batches, avoiding frequent allocations and 
-reducing memory fragmentation. The maximum memory footprint is proportional to the largest cluster size and can
-be bounded by adjusting $K_c$ accordingly.
 
-This memory-aware design allows the algorithm to process datasets that would otherwise exceed the memory capacity 
-in an exact all-to-all k-NN scenario.
+\paragraph{OpenCilk Implementation}
 
-\subsection{Accuracy and Throughput Trade-off}
-
-The principal trade-off in the A2A-ANN approach arises from the choice of the number of clusters $K_c$, 
-which directly impacts both computational throughput and approximation accuracy:
 \begin{itemize}
-    \item \textbf{High $K_c$ (many clusters):} Reduces the size of intra-cluster search, improving throughput 
-    but potentially missing true nearest neighbors that reside in other clusters, thereby reducing recall.
-    \item \textbf{Low $K_c$ (few clusters):} Increases the intra-cluster search space, reducing computational 
-    gains but improving recall by capturing more candidate neighbors.
+    \item The OpenCilk runtime handles task parallelism dynamically through a work-stealing scheduler, 
+    eliminating the need for manual thread management or explicit thread pools.
+    \item Synchronization is implicit, with the runtime ensuring correct execution order via the fork-join 
+    model, removing the need for explicit locks or condition variables.
+    \item Task and resource cleanup are fully managed by the OpenCilk runtime, allowing developers to focus 
+    solely on expressing parallelism via \texttt{cilk\_for} without manual resource deallocation.
 \end{itemize}
 
-This trade-off is quantified in terms of:
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Aspect} & \textbf{Pthreads} & \textbf{OpenMP} & \textbf{OpenCilk} \\
+\hline
+Thread Management & \makecell{Manual \\ fixed thread pool} & \makecell{Automatic \\ runtime threads} & \makecell{Dynamic tasks \\ with work-stealing} \\
+\hline
+Synchronization & \makecell{Manual \\ (mutexes, cond vars)} & \makecell{Implicit \\ via pragmas} & \makecell{Implicit \\ via fork-join} \\
+\hline
+Resource Cleanup & \makecell{Manual \\ destruction} & \makecell{Automatic \\ cleanup} & \makecell{Automatic \\ cleanup} \\
+\hline
+\end{tabular}
+\caption{Comparison of Pthreads, OpenMP, and OpenCilk implementations}
+\end{table}
+
+\subsection{Validation of the Algorithm}
+
+The validation process ensures the correctness of the implemented k-nearest neighbors algorithm by 
+systematically comparing its output against a reliable reference.
+
+\begin{enumerate}
+    \item \textbf{Test Data Generation:} A diverse set of test cases is generated, including both fixed and
+    randomized datasets. For each test case, the ground truth nearest neighbors and distances are computed 
+    using a trusted, well-established k-NN implementation. These reference results serve as the standard for
+    correctness.
+    
+    \item \textbf{Algorithm Execution:} The algorithm under test processes each generated query set against 
+    the corresponding corpus, producing estimated nearest neighbors and distance values.
+    
+    \item \textbf{Result Comparison:} The output distances and neighbor indices from the tested algorithm 
+    are compared element-wise against the reference results within a specified numerical tolerance. Both 
+    the distances and indices must match to validate correctness.
+    
+    \item \textbf{Reporting:} Each test case outcome is reported individually as pass or fail. The overall 
+    success of the validation is determined by aggregating these results, ensuring comprehensive verification 
+    across varying dataset sizes and dimensions.
+\end{enumerate}
+
+This procedure rigorously validates the implementation by leveraging precomputed reference results and 
+enforcing strict numerical and index consistency checks.
+
+\subsection{Performance of the Algorithm}
+
+\subsubsection{Benchmarking Procedure}
+
+The benchmarking procedure assesses the performance scalability of the k-nearest neighbors implementation 
+using the \textbf{MNIST} dataset. The experiments are designed to evaluate how execution time and throughput 
+vary with different parallelization methods and thread counts.
+
+\begin{enumerate}
+    \item The corpus and query matrices are loaded from the MNIST dataset.
+    \item The algorithm executes the k-NN search for six thread configurations: 
+    1, 2, 4, 8, 16, and 32 threads.
+    \item Each configuration is evaluated under three parallelization models: Pthreads, OpenMP, and OpenCilk.
+    \item For every run, the execution time is measured, and throughput is calculated in queries processed 
+    per second.
+    \item All experiments were conducted on a system running Ubuntu LTS 22.04 with a 4-core processor, 
+    allowing evaluation of performance scaling both within and beyond the physical core count.
+\end{enumerate}
+
+This procedure enables direct comparison of parallelization strategies in terms of efficiency and scalability
+across varying thread counts.
+
+\subsubsection{Benchmark Results}
+
+The benchmark results are summarized in Figure~\ref{fig:knn_throughput_vs_threads}, which presents the 
+throughput (queries processed per second) of the k-NN implementation as a function of the number of 
+threads used by the application. Separate plots are provided for each of the three parallelization methods: 
+Pthreads, OpenMP, and OpenCilk.
+
+For each method, two curves are depicted:
 \begin{itemize}
-    \item \textbf{Neighbor Recall:} The proportion of true nearest neighbors retrieved by the approximate method compared to exact computation.
-    \item \textbf{Throughput:} The number of queries processed per second, inversely proportional to runtime.
+\item A \textbf{solid line} shows the throughput when the application itself is parallelized across multiple
+threads while OpenBLAS is restricted to a single thread. This represents the scenario where all parallel 
+resources are allocated to the k-NN search procedure.
+\item A \textbf{dashed horizontal line} indicates the throughput when the application runs on a single thread 
+while OpenBLAS utilizes all available system cores. This serves as a baseline for the performance attainable 
+through multi-threaded BLAS operations alone, without application-level parallelization.
 \end{itemize}
 
-Figure~\ref{fig:ann_recall_vs_clusters} illustrates this trade-off on the MNIST dataset for different thread 
-counts. The minor fluctuations in recall across different thread runs are due to the random initialization of 
-cluster centroids. The results show that practical recall levels of around 90\% can be achieved while significantly 
-reducing runtime. However, when the number of clusters exceeds 100, recall declines sharply, dropping below 60\%,
-indicating that overly aggressive clustering can adversely impact accuracy.
+Across all three parallelization strategies, the solid lines exhibit similar behavior. As the number of 
+application threads increases, the throughput rises, reaching a peak when the thread count matches the 
+number of physical CPU cores (four in our test system). Beyond this point, the throughput begins to decline. 
+This drop is attributed to the overhead introduced by excessive threading, such as increased context-switching,
+resource contention, and scheduling inefficiencies on the limited number of cores.
+
+Importantly, the peak throughput achieved using the application’s own parallelization (solid line) consistently
+surpasses the performance achieved by relying solely on OpenBLAS parallelism (dashed line). This demonstrates the
+effectiveness of explicit workload distribution at the application level, allowing better utilization of compute 
+resources for the specific access patterns and memory requirements of the k-NN search.
+
+Overall, the results highlight both the scalability limits imposed by hardware constraints and the advantages 
+of integrating parallelism directly into the k-NN algorithm, beyond relying solely on low-level numerical 
+libraries.
 
 \begin{figure}
     \centering
-    \includegraphics[width=1\linewidth]{figures/ann_recall_vs_clusters.png}
-    \caption{Trade-off between recall and throughput for varying cluster counts ($K_c$) on the MNIST dataset.}
+    \includegraphics[width=0.5\linewidth]{figures/knn_throughput_vs_threads.png}
+    \caption{Throughput of the exact k-Nearest Neighbors algorithm as a function of the number of threads used. 
+    Solid lines show application-level parallelization with OpenBLAS restricted to a single thread, while dashed
+    lines represent single-threaded application execution with multi-threaded OpenBLAS.}
+    \label{fig:knn_throughput_vs_threads}
+\end{figure}
+
+
+\section{Approximate All-to-All Nearest Neighbors Implementation}
+
+\subsection{Problem Definition}
+
+The \textbf{approximate all-to-all nearest neighbors (ANN)} problem involves computing, for each data 
+point in a corpus $C \in \mathbb{R}^{N \times D}$, its $k$ nearest neighbors among all other points 
+in $C$. This differs from traditional k-NN queries in that the queries and the corpus are identical,
+and the goal is to approximate the nearest neighbors efficiently. 
+
+Due to the $O(N^2)$ computational and memory complexity of exact all-to-all k-NN search, the objective 
+is to develop an approximate solution that reduces runtime and memory footprint, while maintaining 
+acceptable recall accuracy. 
+
+In this implementation, we adopt a clustering-based approach to divide the corpus into smaller subsets 
+(clusters), solve exact k-NN within each cluster, and optimize workload distribution through multi-threading.
+
+\subsection{Algorithm Overview}
+
+The algorithm follows a two-stage pipeline:
+\begin{itemize}
+    \item \textbf{Stage 1: Clustering.} The data points are partitioned into clusters using a lightweight
+    k-means variant. To ensure cluster quality, small clusters are merged until all clusters contain more 
+    than $k$ points, enabling valid intra-cluster k-NN computation.
+    \item \textbf{Stage 2: Intra-cluster k-NN.} For each cluster, exact k-NN search is performed internally.
+    Since points are only compared within their assigned clusters, the approach approximates the full $k$-NN 
+    graph.
+\end{itemize}
+
+This pipeline reduces the overall number of distance computations while leveraging parallelization for 
+intra-cluster k-NN computations.
+
+\subsubsection{Clustering Strategy}
+
+The clustering stage uses a randomized initialization followed by a single assignment step:
+\begin{itemize}
+    \item \textbf{Initialization:} A fixed number of $K_c$ points are randomly selected from the corpus 
+    to serve as initial centroids. The remaining points are assigned to the nearest centroid using exact 
+    distance computations.
+    \item \textbf{Merging Strategy:} After the initial assignment, clusters with fewer than $k$ points 
+    are identified and iteratively merged into their nearest neighboring valid cluster based on centroid 
+    distances. This ensures that each cluster has enough points to perform $k$-NN search locally.
+    \item \textbf{Centroid Update:} Following merging, centroids are recomputed by averaging the points 
+    within each cluster.
+\end{itemize}
+
+This clustering procedure is executed once prior to k-NN computation, providing a balanced cluster 
+distribution and preventing invalid or degenerate clusters.
+
+\subsubsection{Workload Distribution}
+
+After clustering, intra-cluster k-NN searches are distributed across threads using a 
+\textbf{greedy bin-packing algorithm} based on cluster sizes:
+\begin{itemize}
+    \item \textbf{Cluster Assignment:} Clusters are sorted by size in descending order. Each cluster is 
+    assigned to the thread with the smallest cumulative workload (sum of points across its assigned clusters).
+    \item \textbf{Thread Tasks:} Each thread processes its assigned clusters independently, performing exact 
+    $k$-NN within each cluster.
+    \item \textbf{Memory Optimization:} Threads dynamically adjust their memory usage based on the number of 
+    points they process relative to the total number of points, ensuring adherence to a global maximum memory 
+    usage ratio.
+\end{itemize}
+
+This strategy minimizes load imbalance by ensuring that larger clusters are evenly distributed across threads,
+improving parallel efficiency.
+
+\subsubsection{Parallelization Strategy (pros \& cons)}
+
+The approximate ANN algorithm simplifies parallelization by assigning each thread a fixed subset of clusters 
+only once before computation starts. This static workload distribution offers advantages but also introduces 
+challenges related to load balancing.
+
+\begin{itemize}
+    \item Static assignment avoids repeated thread pool creation and dynamic batching, making the Pthreads 
+    implementation simpler—threads are created once, process their assigned clusters independently, then 
+    joined at the end.
+    \item However, cluster size variability can cause load imbalance, as some threads may handle more data than 
+    others; this contrasts with exact k-NN’s dynamic batching which enables more balanced workload distribution.
+    \item To address imbalance, heuristics like greedy bin-packing are used for cluster assignment, while OpenMP's
+    static scheduling and OpenCilk’s dynamic work-stealing help redistribute work at runtime.
+    \item Overall, this approach reduces thread management overhead but requires careful workload distribution 
+    to maintain parallel efficiency.
+\end{itemize}
+
+\subsection{ANN Benchmarks}
+
+\subsubsection{Benchmarking Procedure}
+
+This benchmark assesses the trade-off between accuracy and execution time of the approximate all-to-all 
+nearest neighbors (ANN) algorithm under different configurations, including the number of clusters, 
+thread counts, and parallelization methods. The key steps are:
+
+\begin{itemize}
+    \item Loading and concatenating the training and test subsets of the MNIST dataset.
+    \item Computing the exact all-to-all nearest neighbors on the combined dataset using Euclidean distance 
+    as a metric of proximity.
+    \item Executing the ANN algorithm with various cluster counts and parallelization modes, recording 
+    throughput and recall by comparison to the exact results.
+\end{itemize}
+
+\subsubsection{Recall vs Throughput}
+
+The approximate all-to-all nearest neighbors algorithm involves a fundamental tradeoff between accuracy 
+(recall) and computational efficiency (throughput). This tradeoff is primarily governed by the number of 
+clusters used to partition the dataset: fewer clusters yield coarser partitions that tend to retain more 
+true neighbors within the same cluster, improving recall but increasing computation time; conversely, 
+more clusters create finer partitions that reduce workload and increase throughput at the cost of 
+potentially missing some true neighbors.
+
+Figure~\ref{fig:ann_recall_vs_clusters} illustrates how recall degrades as the number of clusters increases, 
+with high accuracy (up to 90\%) achieved at low cluster counts (around 5) and recall dropping below 60\% as 
+clusters approach 100. This confirms the expected impact of cluster granularity on approximation quality.
+
+The combined effect of this tradeoff on performance is presented in Figure~\ref{fig:ann_recall_vs_throughput},
+which plots recall against throughput for three parallelization methods—Pthreads, OpenMP, and OpenCilk—across 
+multiple cluster counts ($K_c = 5, 10, 20, 50, 100$). All implementations yield consistent recall values for 
+each cluster count and demonstrate comparable throughput, highlighting the stability of the algorithm across 
+parallel frameworks. This visualization enables users to select an appropriate cluster count to balance speed 
+and accuracy according to their application requirements.
+
+\subsubsection{Throughput Scaling with Number of Threads}
+
+Figure~\ref{fig:ann_throughput_vs_threads} illustrates throughput scaling with respect to the number of 
+threads for different cluster counts $K_c$. Across all cases, throughput increases with thread count, 
+peaking around the number of physical CPU cores.
+
+For smaller $K_c$ (e.g., 5, 10, 20), throughput flattens beyond the core count. This occurs because 
+the limited number of large clusters results in significant workload imbalance—execution time is 
+dominated by the largest cluster, leaving extra threads underutilized.
+
+In contrast, for higher $K_c$ (e.g., 50, 100), throughput exhibits a clearer ``elbow'' behavior: it 
+increases up to the physical core count and then drops slightly. The larger number of clusters improves 
+workload distribution across threads, but the overhead of thread oversubscription (e.g., context switching) 
+prevents further scaling.
+
+Similar trends are observed for OpenMP and OpenCilk, with OpenCilk often providing smoother scaling due to 
+dynamic work stealing.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.5\linewidth]{figures/ann_recall_vs_clusters.png}
+    \caption{Recall of the approximate all-to-all nearest neighbors algorithm as a function of the number of clusters}
     \label{fig:ann_recall_vs_clusters}
 \end{figure}
 
-In summary, the clustering parameter $K_c$ provides an effective lever to tune the algorithm's behavior 
-between accuracy and efficiency, allowing flexible adaptation to different deployment scenarios.
-
-\subsection{Throughput Scaling with Threads and Clusters}
-
-Figure~\ref{fig:ann_throughput_vs_threads} presents the throughput of the All-to-All Approximate Nearest 
-Neighbors (A2A-ANN) implementation as a function of the number of application-level threads, for different 
-numbers of clusters. Across all configurations, we observe a consistent trend: throughput increases with the 
-number of threads up to the point where it matches the number of physical CPU cores. Beyond this point, further
-increasing the number of threads leads to saturation or even slight performance degradation, primarily due to 
-overheads from thread contention and context switching. This behavior highlights the importance of aligning the
-number of threads with the available hardware parallelism for optimal performance.
-
-In addition to threading, the figure also demonstrates the effect of clustering on throughput. As the number of
-clusters increases, throughput improves across all thread counts. This improvement is attributed to the reduced 
-computational cost of nearest neighbor searches within smaller clusters, as opposed to performing exhaustive 
-comparisons across the entire dataset. The combined effect of parallelism and clustering results in significant 
-acceleration, especially when both factors are tuned appropriately.
+\begin{figure}
+    \centering
+    \includegraphics[width=0.5\linewidth]{figures/ann_recall_vs_throughput.png}
+    \caption{Recall versus throughput for the approximate all-to-all nearest neighbors algorithm using 
+    Pthreads, OpenMP, and OpenCilk parallelization methods. Points correspond to cluster counts 
+    $K_c = 5, 10, 20, 50,$ and $100$. }
+    \label{fig:ann_recall_vs_throughput}
+\end{figure}
 
 \begin{figure}
     \centering
-    \includegraphics[width=1\linewidth]{figures/ann_throughput_vs_threads.png}
-    \caption{Throughput vs number of threads over different number of clusters ($K_c$)}
+    \includegraphics[width=0.5\linewidth]{figures/ann_throughput_vs_threads.png}
+    \caption{Throughput vs number of threads for different cluster counts using Pthreads. Throughput 
+    increases up to the physical core count and remains stable beyond. Higher cluster counts yield better 
+    scaling due to improved workload balance.}
     \label{fig:ann_throughput_vs_threads}
 \end{figure}
 
 \section{Conclusion and Future Work}
 
-In this report, we presented a parallelized framework for exact k-NN and approximate all-to-all nearest 
-neighbors (A2A-ANN) search. The solution effectively leverages multi-threading, efficient matrix computations, 
-and clustering techniques to achieve high throughput and scalable performance on multi-core systems. Our results 
-demonstrate that significant speedups can be obtained while maintaining acceptable recall levels by adjusting the 
-number of clusters, with optimal performance observed when the number of threads matches the number of physical 
-cores.
+In this project, we developed and evaluated parallel algorithms for both exact k-Nearest Neighbors (k-NN) 
+and approximate all-to-all nearest neighbors (ANN) search. Starting with the exact k-NN implementation, 
+we established a high-performance baseline, analyzing its scalability and performance under different 
+parallelization strategies. Building upon this, we introduced a clustering-based approximation scheme 
+for the ANN problem, significantly reducing computational costs while offering tunable trade-offs 
+between accuracy and throughput.
 
-A key limitation of the current approach is that nearest neighbor candidates are restricted to within individual 
-clusters, which can negatively impact recall at high cluster counts. As future work, we plan to address this by 
-combining candidates from multiple neighboring clusters to improve accuracy. Additionally, we will investigate 
-more advanced clustering strategies, including balanced clustering and hierarchical methods, to further enhance 
-workload distribution and recall. Expanding the implementation to distributed environments and incorporating GPU
-acceleration are also promising directions to handle even larger datasets and further reduce execution time.
+Our benchmarking results demonstrated that:
+\begin{itemize}
+    \item The exact k-NN algorithm achieves good scalability up to the number of physical cores, with 
+    explicit parallelization outperforming library-only threading.
+    \item The ANN algorithm offers substantial speedups with controllable recall, where increasing the 
+    number of clusters improves throughput at the cost of reduced accuracy.
+    \item Multithreading achieves near-linear speedup up to core count, with OpenCilk providing smoother 
+    scaling in scenarios with greater workload imbalance.
+\end{itemize}
 
-\bibliographystyle{IEEEtran}
-\bibliography{references}
+\textbf{Future work} will focus on further improving the quality and efficiency of the ANN solution. 
+Key directions include:
+\begin{itemize}
+    \item \textbf{Merging neighbor lists across clusters} to reduce boundary effects and recover part 
+    of the lost accuracy.
+    \item \textbf{Exploring advanced clustering techniques}, such as balanced k-means or hierarchical 
+    clustering, to achieve more uniform cluster sizes and minimize load imbalance.
+    \item \textbf{Investigating hybrid parallelism} (e.g., combining OpenMP with SIMD vectorization) 
+    to push performance beyond current thread-level parallelism.
+    \item \textbf{Optimizing memory access patterns} for NUMA systems or GPUs to further accelerate 
+    computation on modern hardware platforms.
+\end{itemize}
+
+Overall, our work highlights the practicality of clustering-based ANN methods in large-scale nearest 
+neighbor computations and provides a flexible, parallelizable foundation for further extensions.
+
+
 \end{document}
