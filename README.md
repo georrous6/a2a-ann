@@ -3,6 +3,8 @@
 ![Build Status](https://github.com/georrous6/a2a-ann/actions/workflows/ci-build.yml/badge.svg)
 ![Test Status](https://github.com/georrous6/a2a-ann/actions/workflows/ci-test.yml/badge.svg)
 ![Valgrind Status](https://github.com/georrous6/a2a-ann/actions/workflows/ci-valgrind.yml/badge.svg)
+![KNN Benchmarks](https://github.com/georrous6/a2a-ann/actions/workflows/ci-knn-benchmarks.yml/badge.svg)
+![ANN Benchmarks](https://github.com/georrous6/a2a-ann/actions/workflows/ci-ann-benchmarks.yml/badge.svg)
 
 
 **a2a-ann** is a high-performance C library for solving the **All-to-All Approximate Nearest Neighbors (A2A-ANN)** problem. It includes highly parallelized implementations of both:
@@ -157,6 +159,11 @@ verify the correctness of the implementation.
 Benchmarks were conducted on Ubuntu 22.04 LTS using a 4-core machine and the
 [MNIST dataset](https://github.com/erikbern/ann-benchmarks).
 
+To install the MNIST dataset run
+```bash
+wget http://ann-benchmarks.com/fashion-mnist-784-euclidean.hdf5
+```
+
 To run the benchmarks you have to perform two seperate builds for OpenMP and OpenCilk
 ```bash 
 CC=gcc cmake -S . -B build_openmp -DCMAKE_BUILD_TYPE=Debug 
@@ -178,6 +185,7 @@ cd benchmarks/knn-benchmarks
 chmod +x run_knn_benchmarks.sh
 ./run_knn_benchmarks.sh <path/to/dataset>
 ```
+Replace `path/to/dataset` with the MNIST installation path.
 - The benchmark output will be saved to: `benchmarks/knn-benchmarks/knn_benchmark_output.hdf5`
 - The benchmark plot will be saved to: `docs/figures/knn_throughput_vs_threads.png`. 
 

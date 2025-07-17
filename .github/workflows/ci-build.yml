@@ -21,8 +21,8 @@ jobs:
 
       - name: Configure and Build (OpenMP - Release)
         run: |
-          CC=gcc cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DPRECISION=SINGLE
-          cmake --build build
+          CC=gcc cmake -S . -B build_openmp -DCMAKE_BUILD_TYPE=Release -DPRECISION=SINGLE
+          cmake --build build_openmp
 
   build-opencilk:
     name: Build with OpenCilk
@@ -46,6 +46,6 @@ jobs:
         run: |
           which clang
           clang --version
-          CC=clang cmake -S . -B build_cilk -DCMAKE_BUILD_TYPE=Release -DPRECISION=SINGLE -DUSE_OPENCILK=ON
-          cmake --build build_cilk
+          CC=clang cmake -S . -B build_opencilk -DCMAKE_BUILD_TYPE=Release -DPRECISION=SINGLE -DUSE_OPENCILK=ON
+          cmake --build build_opencilk
 

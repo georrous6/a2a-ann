@@ -1,0 +1,52 @@
+name: Run ANN Benchmarks
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-run-ann:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libopenblas-dev wget python3 python3-pip
+
+      - name: Install Python packages
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install -r requirements.txt
+
+      - name: Download MNIST dataset
+        run: |
+          wget -nc http://ann-benchmarks.com/fashion-mnist-784-euclidean.hdf5
+
+      - name: Download and setup OpenCilk Clang
+        run: |
+          wget https://github.com/OpenCilk/opencilk-project/releases/download/opencilk/v2.1/opencilk-2.1.0-x86_64-linux-gnu-ubuntu-22.04.tar.gz
+          tar -xzf opencilk-2.1.0-x86_64-linux-gnu-ubuntu-22.04.tar.gz
+          echo "$(pwd)/opencilk-2.1.0-x86_64-linux-gnu-ubuntu-22.04/bin" >> $GITHUB_PATH
+
+      - name: Build OpenCilk version (Debug)
+        run: |
+          CC=clang cmake -S . -B build_opencilk -DCMAKE_BUILD_TYPE=Debug -DUSE_OPENCILK=ON
+          cmake --build build_opencilk -- -j$(nproc)
+
+      - name: Run ANN Benchmarks
+        working-directory: benchmarks/ann-benchmarks
+        run: |
+          chmod +x run_ann_benchmarks.sh
+          ./run_ann_benchmarks.sh ../../fashion-mnist-784-euclidean.hdf5
+
+      - name: Upload ANN benchmark results
+        uses: actions/upload-artifact@v3
+        with:
+          name: ann-benchmark-results
+          path: benchmarks/ann-benchmarks/ann_benchmark_output.hdf5
