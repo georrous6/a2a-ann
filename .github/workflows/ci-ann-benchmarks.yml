@@ -1,4 +1,4 @@
-name: Run ANN Benchmarks
+name: ANN Benchmarks
 
 on:
   push:
@@ -46,7 +46,7 @@ jobs:
           ./run_ann_benchmarks.sh ../../fashion-mnist-784-euclidean.hdf5
 
       - name: Upload ANN benchmark results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ann-benchmark-results
           path: benchmarks/ann-benchmarks/ann_benchmark_output.hdf5

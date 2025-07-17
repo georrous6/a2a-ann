@@ -1,4 +1,4 @@
-name: Run KNN Benchmarks
+name: KNN Benchmarks
 
 on:
   push:
@@ -51,7 +51,7 @@ jobs:
           ./run_knn_benchmarks.sh ../../fashion-mnist-784-euclidean.hdf5
 
       - name: Upload KNN benchmark results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: knn-benchmark-results
           path: benchmarks/knn-benchmarks/knn_benchmark_output.hdf5
