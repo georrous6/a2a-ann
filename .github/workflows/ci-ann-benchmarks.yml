@@ -28,6 +28,11 @@ jobs:
         run: |
           wget -nc http://ann-benchmarks.com/fashion-mnist-784-euclidean.hdf5
 
+      - name: Build OpenMP version (Debug)
+        run: |
+          CC=gcc cmake -S . -B build_openmp -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build_openmp -- -j$(nproc)
+
       - name: Download and setup OpenCilk Clang
         run: |
           wget https://github.com/OpenCilk/opencilk-project/releases/download/opencilk/v2.1/opencilk-2.1.0-x86_64-linux-gnu-ubuntu-22.04.tar.gz
