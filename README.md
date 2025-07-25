@@ -104,7 +104,7 @@ parallelization method can be used at a time.
 
 Clone the repository
 ```bash
-git clone git@github.com:georrous6/a2a-ann.git
+git clone https://github.com/georrous6/a2a-ann.git
 cd a2a-ann
 ```
 
