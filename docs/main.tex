@@ -6,7 +6,7 @@
 \usepackage{amssymb}
 \usepackage{makecell}
 
-\title{Parallelized Exact k-Nearest Neighbors Implementation}
+\title{Parallelized All-to-All Approximate Nearest Neighbors Implementation}
 \author{Rousomanis Georgios (10703)\\
 Department of Electrical and Computer Engineering\\
 Aristotle University of Thessaloniki\\
@@ -16,7 +16,7 @@ Email: rousoman@ece.auth.gr
 \begin{document}
 \maketitle
 
-\section{Introduction}
+\section*{Introduction}
 
 The goal of this project is to develop an efficient parallel solution to the 
 \textbf{approximate all-to-all nearest neighbors (ANN)} problem. This task is crucial in 
@@ -412,7 +412,7 @@ dynamic work stealing.
     \label{fig:ann_throughput_vs_threads}
 \end{figure}
 
-\section{Conclusion and Future Work}
+\section*{Conclusion and Future Work}
 
 In this project, we developed and evaluated parallel algorithms for both exact k-Nearest Neighbors (k-NN) 
 and approximate all-to-all nearest neighbors (ANN) search. Starting with the exact k-NN implementation, 
